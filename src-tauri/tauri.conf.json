@@ -38,32 +38,5 @@
     ],
     "externalBin": []
   },
-  "plugins": {
-    "fs": {
-      "all": false,
-      "readFile": true,
-      "writeFile": true,
-      "readDir": true,
-      "copyFile": false,
-      "createDir": true,
-      "removeDir": false,
-      "removeFile": false,
-      "renameFile": false,
-      "exists": true,
-      "scope": {
-        "allow": ["$APPDATA/**", "$APPCONFIG/**", "$AUDIO/**", "$DOCUMENT/**", "$DOWNLOAD/**", "$HOME/**"],
-        "deny": ["$HOME/.ssh/**", "$HOME/.gnupg/**"]
-      }
-    },
-    "dialog": {
-      "all": true
-    },
-    "shell": {
-      "all": false,
-      "execute": false,
-      "sidecar": true,
-      "open": false,
-      "scope": []
-    }
-  }
+  "plugins": {}
 }

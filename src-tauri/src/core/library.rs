@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,8 +24,8 @@ pub struct Track {
     pub replaygain_track: Option<f32>,
     pub replaygain_album: Option<f32>,
     pub play_count: u64,
-    pub last_played_at: Option<DateTime<Utc>>,
-    pub added_at: DateTime<Utc>,
+    pub last_played_at: Option<String>,
+    pub added_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

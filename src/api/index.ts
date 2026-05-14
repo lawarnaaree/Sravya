@@ -97,6 +97,7 @@ export const api = {
     tracks: (limit: number, offset: number) => invoke<Track[]>("get_tracks", { limit, offset }),
     albums: () => invoke<Album[]>("get_albums"),
     artists: () => invoke<Artist[]>("get_artists"),
+    playlistTracks: (playlistId: string) => invoke<Track[]>("get_playlist_tracks", { playlistId }),
     search: (query: string) => invoke<Track[]>("search", { query }),
     addFolder: (path: string) => invoke<void>("add_library_folder", { path }),
     removeFolder: (path: string) => invoke<void>("remove_library_folder", { path }),

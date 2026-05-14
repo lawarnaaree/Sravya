@@ -1,3 +1,4 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -19,4 +20,9 @@ export function formatDuration(ms: number): string {
 
 export function pluralize(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
+}
+
+export function coverUrl(path: string | undefined | null): string | undefined {
+  if (!path) return undefined;
+  return convertFileSrc(path);
 }

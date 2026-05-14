@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -10,15 +9,15 @@ pub struct Playlist {
     pub cover_path: Option<String>,
     pub track_count: u32,
     pub total_duration_ms: u64,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlaylistTrack {
     pub track_id: Uuid,
     pub position: u32,
-    pub added_at: DateTime<Utc>,
+    pub added_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

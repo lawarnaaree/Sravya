@@ -12,6 +12,7 @@
     "fs:allow-read-dir",
     "fs:allow-mkdir",
     "fs:allow-exists",
+    "fs:allow-read-file",
     "shell:default",
     "opener:default"
   ]

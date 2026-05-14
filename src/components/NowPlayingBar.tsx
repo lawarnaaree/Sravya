@@ -1,11 +1,22 @@
-import { Play, Pause, SkipBack, SkipForward, Volume2, Shuffle, Repeat } from "lucide-react";
+import {
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  Music2,
+} from "lucide-react";
 import { usePlayerStore } from "@/state/player";
 import { api } from "@/api";
-import { formatDuration } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration, coverUrl } from "@/lib/utils";
 
 export default function NowPlayingBar() {
-  const { state, currentTrack, positionMs, durationMs, volume, shuffle, repeat } = usePlayerStore();
+  const { state, currentTrack, positionMs, durationMs, volume, muted, shuffle, repeat } =
+    usePlayerStore();
 
   const isPlaying = state === "playing";
   const progress = durationMs > 0 ? (positionMs / durationMs) * 100 : 0;
@@ -15,59 +26,120 @@ export default function NowPlayingBar() {
     else api.playback.resume();
   };
 
+  const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
+    api.playback.seek(Number(e.target.value));
+  };
+
+  const RepeatIcon = repeat === "one" ? Repeat1 : Repeat;
+  const VolumeIcon = muted || volume === 0 ? VolumeX : Volume2;
+
+  const codecIsLossless = currentTrack?.codec === "FLAC" || currentTrack?.codec === "ALAC";
+
   return (
-    <footer className="flex h-20 shrink-0 items-center border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4">
-      {/* Track info */}
+    <footer
+      className="flex shrink-0 items-center gap-4 px-4"
+      style={{
+        height: "var(--nowplay-h)",
+        background: "var(--surface)",
+        borderTop: "1px solid var(--border-subtle)",
+      }}
+    >
+      {/* Track info — left third */}
       <div className="flex w-56 min-w-0 items-center gap-3">
-        {currentTrack?.coverPath ? (
-          <img
-            src={currentTrack.coverPath}
-            alt={currentTrack.album}
-            className="h-12 w-12 rounded-sm object-cover"
-          />
+        {currentTrack ? (
+          <>
+            {coverUrl(currentTrack.coverPath) ? (
+              <img
+                src={coverUrl(currentTrack.coverPath)}
+                alt={currentTrack.album}
+                className="glow-gold h-12 w-12 shrink-0 rounded-sm object-cover"
+              />
+            ) : (
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm"
+                style={{ background: "var(--surface-raised)" }}
+              >
+                <Music2 size={16} style={{ color: "var(--text-subtle)" }} />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                {currentTrack.title}
+              </p>
+              <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                {currentTrack.artist}
+              </p>
+              {codecIsLossless && (
+                <span
+                  className="mt-0.5 inline-flex items-center rounded px-1 py-px text-[9px] font-semibold tracking-wider"
+                  style={{
+                    background: "rgba(201,148,58,0.12)",
+                    color: "var(--gold)",
+                    border: "1px solid rgba(201,148,58,0.25)",
+                  }}
+                >
+                  {currentTrack.codec}
+                </span>
+              )}
+            </div>
+          </>
         ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-sm bg-[var(--color-surface-raised)]">
-            <Volume2 size={16} className="text-[var(--color-text-subtle)]" />
-          </div>
-        )}
-        {currentTrack && (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{currentTrack.title}</p>
-            <p className="truncate text-xs text-[var(--color-text-muted)]">{currentTrack.artist}</p>
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm"
+            style={{ background: "var(--surface-raised)" }}
+          >
+            <Music2 size={16} style={{ color: "var(--text-subtle)" }} />
           </div>
         )}
       </div>
 
-      {/* Controls + scrubber */}
-      <div className="flex flex-1 flex-col items-center gap-1 px-6">
-        <div className="flex items-center gap-4">
+      {/* Controls + scrubber — center */}
+      <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+        {/* Transport buttons */}
+        <div className="flex items-center gap-5">
           <button
             onClick={() => api.playback.command({ type: "setShuffle", enabled: !shuffle })}
             className={cn(
-              "text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]",
-              shuffle && "text-[var(--color-accent)]"
+              "transition-colors",
+              shuffle ? "text-[var(--gold)]" : "text-[var(--text-subtle)] hover:text-[var(--text)]"
             )}
+            aria-label="Shuffle"
           >
             <Shuffle size={15} />
           </button>
 
           <button
             onClick={() => api.playback.previous()}
-            className="text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+            className="transition-colors hover:text-[var(--text)]"
+            style={{ color: "var(--text-muted)" }}
+            aria-label="Previous"
           >
             <SkipBack size={18} />
           </button>
 
+          {/* Play / Pause — gold circle */}
           <button
             onClick={handlePlayPause}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-black transition-transform hover:scale-105 active:scale-95"
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 hover:scale-105 active:scale-95"
+            style={{
+              background: "var(--gold)",
+              color: "var(--text-on-gold)",
+              boxShadow: isPlaying ? "0 0 14px var(--gold-glow)" : undefined,
+            }}
+            aria-label={isPlaying ? "Pause" : "Play"}
           >
-            {isPlaying ? <Pause size={16} /> : <Play size={16} fill="currentColor" />}
+            {isPlaying ? (
+              <Pause size={16} fill="currentColor" />
+            ) : (
+              <Play size={16} fill="currentColor" style={{ marginLeft: 2 }} />
+            )}
           </button>
 
           <button
             onClick={() => api.playback.next()}
-            className="text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+            className="transition-colors hover:text-[var(--text)]"
+            style={{ color: "var(--text-muted)" }}
+            aria-label="Next"
           >
             <SkipForward size={18} />
           </button>
@@ -76,48 +148,68 @@ export default function NowPlayingBar() {
             onClick={() =>
               api.playback.command({
                 type: "setRepeat",
-                mode: repeat === "off" ? "one" : repeat === "one" ? "all" : "off",
+                mode: repeat === "off" ? "all" : repeat === "all" ? "one" : "off",
               })
             }
             className={cn(
-              "text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]",
-              repeat !== "off" && "text-[var(--color-accent)]"
+              "transition-colors",
+              repeat !== "off"
+                ? "text-[var(--gold)]"
+                : "text-[var(--text-subtle)] hover:text-[var(--text)]"
             )}
+            aria-label="Repeat"
           >
-            <Repeat size={15} />
+            <RepeatIcon size={15} />
           </button>
         </div>
 
         {/* Scrubber */}
-        <div className="flex w-full max-w-lg items-center gap-2">
-          <span className="w-10 text-right text-xs text-[var(--color-text-subtle)]">
+        <div className="flex w-full max-w-md items-center gap-2">
+          <span
+            className="w-9 text-right text-[11px] tabular-nums"
+            style={{ color: "var(--text-subtle)" }}
+          >
             {formatDuration(positionMs)}
           </span>
-          <div className="relative flex-1">
-            <div className="h-1 w-full rounded-full bg-[var(--color-border)]">
-              <div
-                className="h-full rounded-full bg-[var(--color-text)] transition-none"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-          <span className="w-10 text-xs text-[var(--color-text-subtle)]">
+          <input
+            type="range"
+            className="scrubber flex-1"
+            min={0}
+            max={durationMs || 100}
+            value={positionMs}
+            style={
+              {
+                "--pct": `${progress}%`,
+              } as React.CSSProperties
+            }
+            onChange={handleScrub}
+            aria-label="Seek"
+          />
+          <span className="w-9 text-[11px] tabular-nums" style={{ color: "var(--text-subtle)" }}>
             {formatDuration(durationMs)}
           </span>
         </div>
       </div>
 
-      {/* Volume */}
-      <div className="flex w-56 items-center justify-end gap-2">
-        <Volume2 size={15} className="text-[var(--color-text-muted)]" />
+      {/* Volume — right third */}
+      <div className="flex w-40 items-center justify-end gap-2">
+        <button
+          onClick={() => api.playback.command({ type: muted ? "unmute" : "mute" })}
+          style={{ color: "var(--text-muted)" }}
+          className="transition-colors hover:text-[var(--text)]"
+          aria-label={muted ? "Unmute" : "Mute"}
+        >
+          <VolumeIcon size={15} />
+        </button>
         <input
           type="range"
           min={0}
           max={1}
           step={0.01}
-          value={volume}
+          value={muted ? 0 : volume}
           onChange={(e) => api.playback.setVolume(Number(e.target.value))}
-          className="w-24 accent-[var(--color-accent)]"
+          className="w-20"
+          aria-label="Volume"
         />
       </div>
     </footer>

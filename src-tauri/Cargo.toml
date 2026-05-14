@@ -27,9 +27,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Audio
-symphonia = { version = "0.5", features = ["all"] }
+rodio = { version = "0.17", features = ["symphonia-all"] }
 cpal = "0.15"
-rb = "0.4"
 
 # Database
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
@@ -63,6 +62,7 @@ chrono = { version = "0.4", features = ["serde"] }
 url = "2"
 base64 = "0.22"
 toml = "0.8"
+dirs = "5"
 
 [profile.release]
 opt-level = 3
