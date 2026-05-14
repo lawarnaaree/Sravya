@@ -1,0 +1,72 @@
+[package]
+name = "sravya"
+version = "0.1.0"
+description = "Sravya — local-first music player"
+authors = []
+edition = "2021"
+
+[lib]
+name = "sravya_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Audio
+symphonia = { version = "0.5", features = ["all"] }
+cpal = "0.15"
+rb = "0.4"
+
+# Database
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros", "migrate"] }
+
+# File watching & scanning
+notify = { version = "8", features = ["macos_kqueue"] }
+walkdir = "2"
+
+# Tag reading
+lofty = "0.22"
+
+# Search
+tantivy = "0.22"
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Crypto
+age = { version = "0.10", features = ["async"] }
+ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
+x25519-dalek = { version = "2", features = ["serde"] }
+rand = "0.8"
+keyring = "3"
+argon2 = "0.5"
+sha2 = "0.10"
+hex = "0.4"
+
+# Misc
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+url = "2"
+base64 = "0.22"
+toml = "0.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+

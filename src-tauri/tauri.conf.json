@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Sravya",
+  "version": "0.1.0",
+  "identifier": "com.sravya.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Sravya",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": true,
+        "transparent": false,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost data: blob:; media-src 'self' asset: https://asset.localhost blob:; font-src 'self' data:; connect-src 'self' https://musicbrainz.org https://acoustid.org https://lrclib.net"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": []
+  },
+  "plugins": {
+    "fs": {
+      "all": false,
+      "readFile": true,
+      "writeFile": true,
+      "readDir": true,
+      "copyFile": false,
+      "createDir": true,
+      "removeDir": false,
+      "removeFile": false,
+      "renameFile": false,
+      "exists": true,
+      "scope": {
+        "allow": ["$APPDATA/**", "$APPCONFIG/**", "$AUDIO/**", "$DOCUMENT/**", "$DOWNLOAD/**", "$HOME/**"],
+        "deny": ["$HOME/.ssh/**", "$HOME/.gnupg/**"]
+      }
+    },
+    "dialog": {
+      "all": true
+    },
+    "shell": {
+      "all": false,
+      "execute": false,
+      "sidecar": true,
+      "open": false,
+      "scope": []
+    }
+  }
+}

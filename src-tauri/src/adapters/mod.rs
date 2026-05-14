@@ -1,0 +1,9 @@
+pub mod applemusic;
+pub mod audio;
+pub mod db;
+pub mod fs_scan;
+pub mod lrclib;
+pub mod musicbrainz;
+pub mod spotify;
+pub mod youtube;
+pub mod ytdlp;
