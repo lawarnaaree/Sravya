@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, Trash2, FolderPlus, Loader2 } from "lucide-react";
+import { FolderOpen, Trash2, FolderPlus, Loader2, Download, Moon, Sun } from "lucide-react";
 import { api } from "@/api";
 import { useLibraryStore } from "@/state/library";
 import EqualizerPanel from "@/components/EqualizerPanel";
+import { useTheme } from "@/hooks/useTheme";
 
 function ScanProgressBar() {
   const { isScanning, scanProgress } = useLibraryStore();
@@ -34,9 +35,90 @@ function ScanProgressBar() {
   );
 }
 
+function DownloadSettings() {
+  const queryClient = useQueryClient();
+  const [changingDir, setChangingDir] = useState(false);
+
+  const { data: settings } = useQuery({
+    queryKey: ["download-settings"],
+    queryFn: () => api.import.getSettings(),
+  });
+
+  const setDirMutation = useMutation({
+    mutationFn: (path: string) => api.import.setSettings(path),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["download-settings"] });
+    },
+  });
+
+  const handleChangeDir = async () => {
+    setChangingDir(true);
+    try {
+      const selected = await open({ directory: true, multiple: false });
+      if (typeof selected === "string" && selected) {
+        await setDirMutation.mutateAsync(selected);
+      }
+    } catch (e) {
+      console.error("Failed to set download dir:", e);
+    } finally {
+      setChangingDir(false);
+    }
+  };
+
+  return (
+    <section className="mb-6">
+      <h2
+        className="mb-3 text-sm font-semibold tracking-wider uppercase"
+        style={{ color: "var(--text-subtle)", letterSpacing: "0.1em" }}
+      >
+        YouTube Downloads
+      </h2>
+      <div
+        className="rounded-xl p-4"
+        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+      >
+        <p className="mb-3 text-sm" style={{ color: "var(--text-muted)" }}>
+          Copy a YouTube link while Sravya is open — it will offer to download it as MP3 and add it
+          to your library automatically.
+        </p>
+
+        <div
+          className="mb-4 flex items-center gap-3 rounded-lg px-3 py-2"
+          style={{ background: "var(--surface-raised)" }}
+        >
+          <FolderOpen size={14} className="shrink-0" style={{ color: "var(--gold)" }} />
+          <span
+            className="min-w-0 flex-1 truncate font-mono text-xs"
+            style={{ color: "var(--text)" }}
+            title={settings?.downloadDir ?? "~/Music/Sravya Downloads (default)"}
+          >
+            {settings?.downloadDir ?? "~/Music/Sravya Downloads (default)"}
+          </span>
+        </div>
+
+        <button
+          onClick={handleChangeDir}
+          disabled={changingDir || setDirMutation.isPending}
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all disabled:opacity-50"
+          style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
+        >
+          {changingDir ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          Change Download Folder
+        </button>
+
+        <p className="mt-3 text-xs" style={{ color: "var(--text-subtle)" }}>
+          Requires <code>yt-dlp</code> and <code>ffmpeg</code> on PATH. Install:{" "}
+          <code>winget install yt-dlp.yt-dlp</code> and <code>winget install Gyan.FFmpeg</code>
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export default function Settings() {
   const queryClient = useQueryClient();
   const [addingFolder, setAddingFolder] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   const { data: stats } = useQuery({
     queryKey: ["stats"],
@@ -79,6 +161,180 @@ export default function Settings() {
         <h1 className="mb-6 text-2xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
           Settings
         </h1>
+
+        {/* Appearance */}
+        <section className="mb-6">
+          <h2
+            className="mb-3 text-sm font-semibold tracking-wider uppercase"
+            style={{ color: "var(--text-subtle)", letterSpacing: "0.1em" }}
+          >
+            Appearance
+          </h2>
+          <div
+            className="rounded-xl p-4"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+          >
+            <p className="mb-3 text-sm" style={{ color: "var(--text-muted)" }}>
+              Choose your preferred colour theme.
+            </p>
+            <div className="flex gap-3">
+              {/* Dark */}
+              <button
+                onClick={() => setTheme("dark")}
+                style={{
+                  flex: 1,
+                  borderRadius: "0.75rem",
+                  overflow: "hidden",
+                  border: theme === "dark" ? "2px solid var(--gold)" : "2px solid var(--border)",
+                  cursor: "pointer",
+                  background: "none",
+                  padding: 0,
+                  transition: "border-color 0.15s",
+                }}
+                aria-label="Dark theme"
+              >
+                {/* Preview swatch */}
+                <div style={{ background: "#09090f", padding: "0.75rem 1rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <div
+                      style={{ width: 24, height: 24, borderRadius: "50%", background: "#c9943a" }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          height: 6,
+                          borderRadius: 3,
+                          background: "#f2ede4",
+                          width: "60%",
+                          marginBottom: 4,
+                        }}
+                      />
+                      <div
+                        style={{ height: 4, borderRadius: 2, background: "#4a4660", width: "40%" }}
+                      />
+                    </div>
+                  </div>
+                  <div
+                    style={{ height: 3, borderRadius: 2, background: "#252545", marginBottom: 4 }}
+                  />
+                  <div
+                    style={{ height: 3, borderRadius: 2, background: "#252545", width: "75%" }}
+                  />
+                </div>
+                <div
+                  style={{
+                    background: "#0f0f1b",
+                    padding: "0.4rem 1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <Moon size={12} color="#c9943a" />
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#f2ede4" }}>
+                    Dark
+                  </span>
+                  {theme === "dark" && (
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: "#c9943a",
+                        display: "block",
+                      }}
+                    />
+                  )}
+                </div>
+              </button>
+
+              {/* Light */}
+              <button
+                onClick={() => setTheme("light")}
+                style={{
+                  flex: 1,
+                  borderRadius: "0.75rem",
+                  overflow: "hidden",
+                  border: theme === "light" ? "2px solid var(--gold)" : "2px solid var(--border)",
+                  cursor: "pointer",
+                  background: "none",
+                  padding: 0,
+                  transition: "border-color 0.15s",
+                }}
+                aria-label="Light theme"
+              >
+                <div style={{ background: "#f2ede4", padding: "0.75rem 1rem" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <div
+                      style={{ width: 24, height: 24, borderRadius: "50%", background: "#c9943a" }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          height: 6,
+                          borderRadius: 3,
+                          background: "#0f0f1b",
+                          width: "60%",
+                          marginBottom: 4,
+                        }}
+                      />
+                      <div
+                        style={{ height: 4, borderRadius: 2, background: "#9090a8", width: "40%" }}
+                      />
+                    </div>
+                  </div>
+                  <div
+                    style={{ height: 3, borderRadius: 2, background: "#d4cec4", marginBottom: 4 }}
+                  />
+                  <div
+                    style={{ height: 3, borderRadius: 2, background: "#d4cec4", width: "75%" }}
+                  />
+                </div>
+                <div
+                  style={{
+                    background: "#ffffff",
+                    padding: "0.4rem 1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <Sun size={12} color="#c9943a" />
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#0f0f1b" }}>
+                    Light
+                  </span>
+                  {theme === "light" && (
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: "#c9943a",
+                        display: "block",
+                      }}
+                    />
+                  )}
+                </div>
+              </button>
+            </div>
+          </div>
+        </section>
 
         {/* Music Library */}
         <section className="mb-6">
@@ -152,6 +408,9 @@ export default function Settings() {
             </button>
           </div>
         </section>
+
+        {/* YouTube Downloads */}
+        <DownloadSettings />
 
         {/* Equalizer */}
         <section className="mb-6">

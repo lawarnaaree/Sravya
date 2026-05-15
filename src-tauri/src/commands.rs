@@ -1,12 +1,12 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
-use tauri::{Emitter, State};
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 use crate::{
     adapters::{
         audio::{AudioCommand, QueueEntry},
-        db, fs_scan, lrclib,
+        db, fs_scan, lrclib, youtube, ytdlp,
     },
     core::{
         importer::{DownloadJob, ImportRequest, ImportResult},
@@ -394,15 +394,87 @@ pub async fn set_eq_settings(state: State<'_, AppState>, settings: EqSettings) -
 // ── Import (Phase 3) ───────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn import_url(_state: State<'_, AppState>, _req: ImportRequest) -> Result<ImportResult> {
-    Err(crate::error::AppError::ImportRefused(
-        "Link import is not yet available (Phase 3).".to_string(),
-    ))
+pub async fn import_url(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    req: ImportRequest,
+) -> Result<ImportResult> {
+    if !youtube::is_youtube_url(&req.url) {
+        return Ok(ImportResult::Refused {
+            reason: "Not a YouTube URL.".to_string(),
+        });
+    }
+
+    if !ytdlp::check_available(&app).await {
+        return Ok(ImportResult::Refused {
+            reason: "yt-dlp not found on PATH. Install with: winget install yt-dlp.yt-dlp"
+                .to_string(),
+        });
+    }
+
+    // Resolve download directory: user setting or default ~/Music/Sravya Downloads
+    let download_dir: PathBuf = match db::get_setting(&state.db, "download_dir").await? {
+        Some(path) => PathBuf::from(path),
+        None => dirs::audio_dir()
+            .unwrap_or_else(|| state.data_dir.clone())
+            .join("Sravya Downloads"),
+    };
+    tokio::fs::create_dir_all(&download_dir).await?;
+
+    let title = ytdlp::fetch_title(&app, &req.url).await;
+
+    let job = DownloadJob {
+        id: Uuid::new_v4().to_string(),
+        url: req.url.clone(),
+        title,
+        progress: 0.0,
+        state: crate::core::importer::DownloadState::Queued,
+    };
+    let job_id = job.id.clone();
+    let job_id_ret = job_id.clone();
+
+    state.download_queue.lock().unwrap().push(job);
+
+    // Clone everything the spawned task needs
+    let queue = Arc::clone(&state.download_queue);
+    let url = req.url.clone();
+    let dir = download_dir.clone();
+    let pool = state.db.clone();
+    let covers_dir = state.covers_dir.clone();
+    let app_clone = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        match ytdlp::spawn_download(app_clone.clone(), queue, job_id, url, dir.clone()).await {
+            Ok(_) => {
+                let dir_str = dir.to_string_lossy().into_owned();
+                let _ = fs_scan::scan_folder(&pool, &dir_str, &covers_dir, |_| {}).await;
+                let _ = app_clone.emit(crate::events::LIBRARY_SCAN_COMPLETE, ());
+            }
+            Err(e) => {
+                tracing::error!("yt-dlp download failed: {e}");
+            }
+        }
+    });
+
+    Ok(ImportResult::Queued { job_id: job_id_ret })
 }
 
 #[tauri::command]
-pub async fn get_download_queue(_state: State<'_, AppState>) -> Result<Vec<DownloadJob>> {
-    Ok(vec![])
+pub async fn get_download_queue(state: State<'_, AppState>) -> Result<Vec<DownloadJob>> {
+    let q = state.download_queue.lock().unwrap();
+    Ok(q.clone())
+}
+
+#[tauri::command]
+pub async fn get_download_settings(state: State<'_, AppState>) -> Result<serde_json::Value> {
+    let dir = db::get_setting(&state.db, "download_dir").await?;
+    Ok(serde_json::json!({ "downloadDir": dir }))
+}
+
+#[tauri::command]
+pub async fn set_download_settings(state: State<'_, AppState>, download_dir: String) -> Result<()> {
+    db::set_setting(&state.db, "download_dir", &download_dir).await?;
+    Ok(())
 }
 
 // ── Sharing (Phase 4) ──────────────────────────────────────────────────────

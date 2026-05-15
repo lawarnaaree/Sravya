@@ -5,9 +5,13 @@ mod crypto;
 mod error;
 pub mod events;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use adapters::audio::AudioEngine;
+use core::importer::DownloadJob;
 use sqlx::SqlitePool;
 use tauri::Manager;
 
@@ -16,6 +20,7 @@ pub struct AppState {
     pub audio: Arc<AudioEngine>,
     pub covers_dir: PathBuf,
     pub data_dir: PathBuf,
+    pub download_queue: Arc<Mutex<Vec<DownloadJob>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,6 +30,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -61,6 +67,7 @@ pub fn run() {
                 audio,
                 covers_dir,
                 data_dir,
+                download_queue: Arc::new(Mutex::new(Vec::new())),
             });
 
             Ok(())
@@ -93,6 +100,8 @@ pub fn run() {
             // import — Phase 3
             commands::import_url,
             commands::get_download_queue,
+            commands::get_download_settings,
+            commands::set_download_settings,
             // sharing — Phase 4
             commands::get_identity,
             commands::export_playlist_share,

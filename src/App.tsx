@@ -9,11 +9,16 @@ import Search from "@/views/Search";
 import Settings from "@/views/Settings";
 import { usePlaybackPoller } from "@/hooks/usePlayback";
 import { useLibraryEvents } from "@/hooks/useLibraryEvents";
+import { useClipboardMonitor } from "@/hooks/useClipboardMonitor";
+import { useDownloadEvents } from "@/hooks/useDownloadEvents";
 import { usePlayerStore } from "@/state/player";
+import DownloadToast from "@/components/DownloadToast";
 
 export default function App() {
   usePlaybackPoller();
   useLibraryEvents();
+  useClipboardMonitor();
+  useDownloadEvents();
 
   const { isFullScreen, setFullScreen } = usePlayerStore();
 
@@ -32,6 +37,7 @@ export default function App() {
         </main>
       </div>
       <NowPlayingBar />
+      <DownloadToast />
 
       <AnimatePresence>
         {isFullScreen && <NowPlayingFull onClose={() => setFullScreen(false)} />}

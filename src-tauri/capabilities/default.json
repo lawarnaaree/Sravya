@@ -14,6 +14,8 @@
     "fs:allow-exists",
     "fs:allow-read-file",
     "shell:default",
-    "opener:default"
+    "shell:allow-execute",
+    "opener:default",
+    "clipboard-manager:allow-read-text"
   ]
 }

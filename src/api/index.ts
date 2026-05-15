@@ -89,6 +89,14 @@ export interface DownloadJob {
   state: "queued" | "downloading" | "processing" | "done" | { failed: { error: string } };
 }
 
+export type ImportResult =
+  | { status: "queued"; jobId: string }
+  | { status: "refused"; reason: string };
+
+export interface DownloadSettings {
+  downloadDir?: string;
+}
+
 // ── Phase 2 types ──────────────────────────────────────────────────────────
 
 export interface LyricsLine {
@@ -156,8 +164,10 @@ export const api = {
   },
 
   import: {
-    url: (url: string) => invoke<object>("import_url", { req: { url } }),
+    url: (url: string) => invoke<ImportResult>("import_url", { req: { url } }),
     queue: () => invoke<DownloadJob[]>("get_download_queue"),
+    getSettings: () => invoke<DownloadSettings>("get_download_settings"),
+    setSettings: (downloadDir: string) => invoke<void>("set_download_settings", { downloadDir }),
   },
 
   lyrics: {
