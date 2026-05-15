@@ -32,8 +32,8 @@ export default function AlbumGrid({ albums, tracks }: AlbumGridProps) {
     if (albumTracks.length > 0) {
       api.playback.command({
         type: "playQueue",
-        trackIds: albumTracks.map((t) => t.id),
-        startIndex: 0,
+        track_ids: albumTracks.map((t) => t.id),
+        start_index: 0,
       });
     }
   };
@@ -82,7 +82,7 @@ function AlbumCard({ album, onPlay }: { album: Album; onPlay: () => void }) {
           <div className="art-gradient absolute inset-0" />
           <button
             onClick={onPlay}
-            className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 active:scale-95"
+            className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full transition-transform duration-75 hover:scale-110 active:scale-90"
             style={{
               background: "var(--gold)",
               color: "var(--text-on-gold)",

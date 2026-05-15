@@ -1,16 +1,21 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import Sidebar from "@/components/Sidebar";
 import NowPlayingBar from "@/components/NowPlayingBar";
+import NowPlayingFull from "@/components/NowPlayingFull";
 import Library from "@/views/Library";
 import Playlists from "@/views/Playlists";
 import Search from "@/views/Search";
 import Settings from "@/views/Settings";
 import { usePlaybackPoller } from "@/hooks/usePlayback";
 import { useLibraryEvents } from "@/hooks/useLibraryEvents";
+import { usePlayerStore } from "@/state/player";
 
 export default function App() {
   usePlaybackPoller();
   useLibraryEvents();
+
+  const { isFullScreen, setFullScreen } = usePlayerStore();
 
   return (
     <div className="flex h-full flex-col" style={{ background: "var(--bg)", color: "var(--text)" }}>
@@ -27,6 +32,10 @@ export default function App() {
         </main>
       </div>
       <NowPlayingBar />
+
+      <AnimatePresence>
+        {isFullScreen && <NowPlayingFull onClose={() => setFullScreen(false)} />}
+      </AnimatePresence>
     </div>
   );
 }

@@ -27,7 +27,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Audio
-rodio = { version = "0.17", features = ["symphonia-all"] }
+rodio = { version = "0.19", features = ["symphonia-all"] }
 cpal = "0.15"
 
 # Database

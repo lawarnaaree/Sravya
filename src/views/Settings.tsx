@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FolderOpen, Trash2, FolderPlus, Loader2 } from "lucide-react";
 import { api } from "@/api";
 import { useLibraryStore } from "@/state/library";
+import EqualizerPanel from "@/components/EqualizerPanel";
 
 function ScanProgressBar() {
   const { isScanning, scanProgress } = useLibraryStore();
@@ -152,13 +153,13 @@ export default function Settings() {
           </div>
         </section>
 
-        {/* Audio */}
+        {/* Equalizer */}
         <section className="mb-6">
           <h2
             className="mb-3 text-sm font-semibold tracking-wider uppercase"
             style={{ color: "var(--text-subtle)", letterSpacing: "0.1em" }}
           >
-            Audio
+            Equalizer
           </h2>
           <div
             className="rounded-xl p-4"
@@ -167,10 +168,7 @@ export default function Settings() {
               border: "1px solid var(--border)",
             }}
           >
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Bit-perfect output, gapless playback, ReplayGain, and 10-band EQ are coming in Phase
-              2.
-            </p>
+            <EqualizerPanel />
           </div>
         </section>
 

@@ -40,8 +40,8 @@ export default function TrackList({ tracks, showAlbum = true, onPlayTrack }: Tra
       } else {
         api.playback.command({
           type: "playQueue",
-          trackIds: tracks.map((t) => t.id),
-          startIndex: index,
+          track_ids: tracks.map((t) => t.id),
+          start_index: index,
         });
       }
     },
@@ -135,7 +135,7 @@ export default function TrackList({ tracks, showAlbum = true, onPlayTrack }: Tra
                   <>
                     <span className="group-hover:hidden">{vRow.index + 1}</span>
                     <button
-                      className="hidden group-hover:flex"
+                      className="hidden transition-transform duration-75 group-hover:flex active:scale-90"
                       onClick={() => handlePlay(track, vRow.index)}
                       aria-label={`Play ${track.title}`}
                     >

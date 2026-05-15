@@ -6,12 +6,15 @@ use uuid::Uuid;
 use crate::{
     adapters::{
         audio::{AudioCommand, QueueEntry},
-        db, fs_scan,
+        db, fs_scan, lrclib,
     },
     core::{
         importer::{DownloadJob, ImportRequest, ImportResult},
         library::{Album, Artist, LibraryStats, Track},
-        playback::{PlaybackState, PlaybackStatus, PlayerCommand, RepeatMode as CoreRepeat},
+        playback::{
+            EqBand, EqSettings, LyricsData, PlaybackState, PlaybackStatus, PlayerCommand,
+            RepeatMode as CoreRepeat, EQ_FREQUENCIES,
+        },
         playlist::{CreatePlaylistRequest, Playlist, UpdatePlaylistRequest},
         sharing::{IdentityInfo, ImportShareResult},
         sync::SyncStatus,
@@ -164,6 +167,7 @@ pub async fn play_track(state: State<'_, AppState>, track_id: String) -> Result<
             path: PathBuf::from(&t.file_path),
             track_id: id,
             duration_ms: t.duration_ms,
+            replaygain_db: t.replaygain_track.unwrap_or(0.0),
         });
     }
     Ok(())
@@ -182,6 +186,7 @@ pub async fn send_player_command(state: State<'_, AppState>, command: PlayerComm
                     path: PathBuf::from(&t.file_path),
                     track_id,
                     duration_ms: t.duration_ms,
+                    replaygain_db: t.replaygain_track.unwrap_or(0.0),
                 }
             } else {
                 return Ok(());
@@ -198,6 +203,7 @@ pub async fn send_player_command(state: State<'_, AppState>, command: PlayerComm
                         track_id: *id,
                         path: PathBuf::from(&t.file_path),
                         duration_ms: t.duration_ms,
+                        replaygain_db: t.replaygain_track.unwrap_or(0.0),
                     });
                 }
             }
@@ -227,6 +233,7 @@ pub async fn send_player_command(state: State<'_, AppState>, command: PlayerComm
                     track_id,
                     path: PathBuf::from(&t.file_path),
                     duration_ms: t.duration_ms,
+                    replaygain_db: t.replaygain_track.unwrap_or(0.0),
                 })
             } else {
                 return Ok(());
@@ -296,6 +303,92 @@ pub async fn remove_from_playlist(
     let p = Uuid::parse_str(&playlist_id)
         .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
     db::remove_track_from_playlist(&state.db, p, position).await
+}
+
+// ── Phase 2: Lyrics ────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_lyrics(
+    state: State<'_, AppState>,
+    track_id: String,
+) -> Result<Option<LyricsData>> {
+    let id = Uuid::parse_str(&track_id)
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+
+    // Check DB cache first.
+    if let Some((synced_lrc, plain)) = db::get_cached_lyrics(&state.db, id).await? {
+        let synced = lrclib::parse_lrc(&synced_lrc);
+        let plain_opt = if plain.is_empty() { None } else { Some(plain) };
+        return Ok(Some(LyricsData {
+            synced,
+            plain: plain_opt,
+        }));
+    }
+
+    // Fetch from LRCLIB.
+    let track = match db::get_track_by_id(&state.db, id).await? {
+        Some(t) => t,
+        None => return Ok(None),
+    };
+
+    match lrclib::fetch_lyrics(
+        &track.title,
+        &track.artist,
+        &track.album,
+        track.duration_ms / 1000,
+    )
+    .await
+    {
+        Ok(Some(lyrics)) => {
+            let synced_lrc = lrclib::lrc_to_string(&lyrics.synced);
+            let plain_str = lyrics.plain.as_deref().unwrap_or("");
+            let _ = db::cache_lyrics(&state.db, id, &synced_lrc, plain_str).await;
+            Ok(Some(lyrics))
+        }
+        Ok(None) => {
+            // Cache the "no lyrics" result to avoid re-fetching.
+            let _ = db::cache_lyrics(&state.db, id, "", "").await;
+            Ok(None)
+        }
+        Err(e) => {
+            eprintln!("LRCLIB fetch error: {e}");
+            Ok(None)
+        }
+    }
+}
+
+// ── Phase 2: EQ ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_eq_settings(state: State<'_, AppState>) -> Result<EqSettings> {
+    let cfg = state.audio.eq_config.read().unwrap();
+    Ok(EqSettings {
+        enabled: cfg.enabled,
+        preamp_db: cfg.preamp_db,
+        bands: EQ_FREQUENCIES
+            .iter()
+            .zip(cfg.bands.iter())
+            .map(|(&freq_hz, &gain_db)| EqBand { freq_hz, gain_db })
+            .collect(),
+    })
+}
+
+#[tauri::command]
+pub async fn set_eq_settings(state: State<'_, AppState>, settings: EqSettings) -> Result<()> {
+    {
+        let mut cfg = state.audio.eq_config.write().unwrap();
+        cfg.enabled = settings.enabled;
+        cfg.preamp_db = settings.preamp_db.clamp(-12.0, 12.0);
+        for (i, band) in settings.bands.iter().enumerate().take(10) {
+            cfg.bands[i] = band.gain_db.clamp(-12.0, 12.0);
+        }
+    } // lock released before any await
+
+    // Persist to settings table (best-effort).
+    let json = serde_json::to_string(&settings).unwrap_or_default();
+    let _ = db::set_setting(&state.db, "eq_settings", &json).await;
+
+    Ok(())
 }
 
 // ── Import (Phase 3) ───────────────────────────────────────────────────────

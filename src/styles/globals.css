@@ -145,26 +145,39 @@ input[type="range"] {
   appearance: none;
   background: transparent;
   cursor: pointer;
+  height: 20px;   /* hit-target height */
 }
 
 input[type="range"]::-webkit-slider-track {
-  background: var(--overlay);
-  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  height: 4px;
   border-radius: 2px;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 0px;
+  height: 0px;
   border-radius: 50%;
   background: var(--text);
-  margin-top: -4.5px;
-  transition: background 0.15s, transform 0.15s;
+  margin-top: -4px;
+  transition: width 0.1s, height 0.1s, background 0.1s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
 
-input[type="range"]:hover::-webkit-slider-thumb {
+/* Show thumb on hover/active only — cleaner look */
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:focus::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
   background: var(--gold-bright);
+  margin-top: -4.5px;
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--gold);
   transform: scale(1.15);
 }
 
@@ -177,13 +190,23 @@ input[type="range"]:hover::-webkit-slider-thumb {
   color: var(--text);
 }
 
-/* Progress fill via CSS custom property injected by React */
+/* Progress fill via CSS custom property --pct injected by React */
 input[type="range"].scrubber::-webkit-slider-track {
   background: linear-gradient(
     to right,
     var(--gold) 0%,
     var(--gold) var(--pct, 0%),
-    var(--overlay) var(--pct, 0%),
-    var(--overlay) 100%
+    rgba(255, 255, 255, 0.1) var(--pct, 0%),
+    rgba(255, 255, 255, 0.1) 100%
   );
+  height: 4px;
+}
+
+/* ── Pulse-gold animation (now-playing ♪ indicator) ──────────────────────── */
+@keyframes pulse-gold-text {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.animate-pulse-gold {
+  animation: pulse-gold-text 1.4s ease-in-out infinite;
 }

@@ -42,6 +42,20 @@ pub fn run() {
 
             let audio = Arc::new(AudioEngine::new());
 
+            // Restore persisted EQ settings if available.
+            if let Ok(Some(json)) =
+                tauri::async_runtime::block_on(adapters::db::get_setting(&db, "eq_settings"))
+            {
+                if let Ok(settings) = serde_json::from_str::<core::playback::EqSettings>(&json) {
+                    let mut cfg = audio.eq_config.write().unwrap();
+                    cfg.enabled = settings.enabled;
+                    cfg.preamp_db = settings.preamp_db;
+                    for (i, band) in settings.bands.iter().enumerate().take(10) {
+                        cfg.bands[i] = band.gain_db;
+                    }
+                }
+            }
+
             app.manage(AppState {
                 db,
                 audio,
@@ -72,6 +86,10 @@ pub fn run() {
             commands::delete_playlist,
             commands::add_to_playlist,
             commands::remove_from_playlist,
+            // Phase 2: lyrics + EQ
+            commands::get_lyrics,
+            commands::get_eq_settings,
+            commands::set_eq_settings,
             // import — Phase 3
             commands::import_url,
             commands::get_download_queue,

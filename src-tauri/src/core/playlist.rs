@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Playlist {
     pub id: Uuid,
     pub name: String,
@@ -14,6 +15,7 @@ pub struct Playlist {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaylistTrack {
     pub track_id: Uuid,
     pub position: u32,
@@ -21,12 +23,14 @@ pub struct PlaylistTrack {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreatePlaylistRequest {
     pub name: String,
     pub description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdatePlaylistRequest {
     pub name: Option<String>,
     pub description: Option<String>,

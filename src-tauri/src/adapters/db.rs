@@ -513,3 +513,57 @@ pub async fn get_playlist_tracks(pool: &SqlitePool, playlist_id: Uuid) -> Result
     .await?;
     Ok(rows.iter().map(row_to_track).collect())
 }
+
+// ── Phase 2: Lyrics cache ─────────────────────────────────────────────────
+
+pub async fn get_cached_lyrics(
+    pool: &SqlitePool,
+    track_id: Uuid,
+) -> Result<Option<(String, String)>> {
+    let row = sqlx::query("SELECT synced, plain FROM lyrics_cache WHERE track_id = ?1")
+        .bind(track_id.to_string())
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|r| {
+        let synced: String = r.get::<Option<String>, _>("synced").unwrap_or_default();
+        let plain: String = r.get::<Option<String>, _>("plain").unwrap_or_default();
+        (synced, plain)
+    }))
+}
+
+pub async fn cache_lyrics(
+    pool: &SqlitePool,
+    track_id: Uuid,
+    synced: &str,
+    plain: &str,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT OR REPLACE INTO lyrics_cache (track_id, synced, plain, fetched_at) VALUES (?1,?2,?3,?4)",
+    )
+    .bind(track_id.to_string())
+    .bind(synced)
+    .bind(plain)
+    .bind(Utc::now().to_rfc3339())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+// ── Phase 2: Settings ─────────────────────────────────────────────────────
+
+pub async fn get_setting(pool: &SqlitePool, key: &str) -> Result<Option<String>> {
+    let row = sqlx::query("SELECT value FROM settings WHERE key = ?1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?;
+    Ok(row.map(|r| r.get::<String, _>("value")))
+}
+
+pub async fn set_setting(pool: &SqlitePool, key: &str, value: &str) -> Result<()> {
+    sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)")
+        .bind(key)
+        .bind(value)
+        .execute(pool)
+        .await?;
+    Ok(())
+}

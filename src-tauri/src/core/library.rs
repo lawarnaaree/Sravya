@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: Uuid,
     pub title: String,
@@ -29,6 +30,7 @@ pub struct Track {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Album {
     pub id: Uuid,
     pub title: String,
@@ -40,6 +42,7 @@ pub struct Album {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Artist {
     pub id: Uuid,
     pub name: String,
@@ -49,6 +52,7 @@ pub struct Artist {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryStats {
     pub track_count: u64,
     pub album_count: u64,

@@ -2,9 +2,11 @@ import { create } from "zustand";
 import type { PlaybackStatus, Track } from "@/api";
 
 interface PlayerState extends PlaybackStatus {
+  isFullScreen: boolean;
   setStatus: (status: PlaybackStatus) => void;
   setPosition: (positionMs: number) => void;
   setCurrentTrack: (track: Track | undefined) => void;
+  setFullScreen: (open: boolean) => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set) => ({
@@ -18,8 +20,10 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   repeat: "off",
   queue: [],
   queueIndex: 0,
+  isFullScreen: false,
 
   setStatus: (status) => set(status),
   setPosition: (positionMs) => set({ positionMs }),
   setCurrentTrack: (currentTrack) => set({ currentTrack }),
+  setFullScreen: (isFullScreen) => set({ isFullScreen }),
 }));

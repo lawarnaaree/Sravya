@@ -91,3 +91,54 @@ pub enum PlayerCommand {
     },
     QueueClear,
 }
+
+// ── Phase 2: EQ types ──────────────────────────────────────────────────────
+
+pub const EQ_FREQUENCIES: [u32; 10] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EqBand {
+    pub freq_hz: u32,
+    pub gain_db: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EqSettings {
+    pub enabled: bool,
+    pub preamp_db: f32,
+    pub bands: Vec<EqBand>,
+}
+
+impl Default for EqSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            preamp_db: 0.0,
+            bands: EQ_FREQUENCIES
+                .iter()
+                .map(|&freq_hz| EqBand {
+                    freq_hz,
+                    gain_db: 0.0,
+                })
+                .collect(),
+        }
+    }
+}
+
+// ── Phase 2: Lyrics types ──────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsLine {
+    pub time_ms: u64,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsData {
+    pub synced: Vec<LyricsLine>,
+    pub plain: Option<String>,
+}

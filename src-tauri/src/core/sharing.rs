@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SharePayload {
     pub playlist_id: Uuid,
     pub playlist_name: String,
@@ -12,6 +13,7 @@ pub struct SharePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SharedTrack {
     pub title: String,
     pub artist: String,
@@ -22,6 +24,7 @@ pub struct SharedTrack {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ShareFileHeader {
     pub version: u8,
     pub sender_pubkey: String,
@@ -41,6 +44,7 @@ pub enum ImportShareResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IdentityInfo {
     pub public_key: String,
     pub fingerprint: String,

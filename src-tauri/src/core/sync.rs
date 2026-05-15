@@ -10,6 +10,7 @@ pub enum SyncProvider {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderPlaylist {
     pub provider: SyncProvider,
     pub provider_id: String,
@@ -19,6 +20,7 @@ pub struct ProviderPlaylist {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderTrack {
     pub provider_id: String,
     pub title: String,

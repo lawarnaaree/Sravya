@@ -89,6 +89,29 @@ export interface DownloadJob {
   state: "queued" | "downloading" | "processing" | "done" | { failed: { error: string } };
 }
 
+// ── Phase 2 types ──────────────────────────────────────────────────────────
+
+export interface LyricsLine {
+  timeMs: number;
+  text: string;
+}
+
+export interface LyricsData {
+  synced: LyricsLine[];
+  plain?: string;
+}
+
+export interface EqBand {
+  freqHz: number;
+  gainDb: number;
+}
+
+export interface EqSettings {
+  enabled: boolean;
+  preampDb: number;
+  bands: EqBand[];
+}
+
 // ── Library ────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -107,12 +130,12 @@ export const api = {
     status: () => invoke<PlaybackStatus>("get_playback_status"),
     command: (command: object) => invoke<void>("send_player_command", { command }),
     play: (trackId: string) =>
-      invoke<void>("send_player_command", { command: { type: "play", trackId } }),
+      invoke<void>("send_player_command", { command: { type: "play", track_id: trackId } }),
     pause: () => invoke<void>("send_player_command", { command: { type: "pause" } }),
     resume: () => invoke<void>("send_player_command", { command: { type: "resume" } }),
     stop: () => invoke<void>("send_player_command", { command: { type: "stop" } }),
     seek: (positionMs: number) =>
-      invoke<void>("send_player_command", { command: { type: "seek", positionMs } }),
+      invoke<void>("send_player_command", { command: { type: "seek", position_ms: positionMs } }),
     setVolume: (level: number) =>
       invoke<void>("send_player_command", { command: { type: "setVolume", level } }),
     next: () => invoke<void>("send_player_command", { command: { type: "next" } }),
@@ -135,5 +158,14 @@ export const api = {
   import: {
     url: (url: string) => invoke<object>("import_url", { req: { url } }),
     queue: () => invoke<DownloadJob[]>("get_download_queue"),
+  },
+
+  lyrics: {
+    get: (trackId: string) => invoke<LyricsData | null>("get_lyrics", { trackId }),
+  },
+
+  eq: {
+    getSettings: () => invoke<EqSettings>("get_eq_settings"),
+    setSettings: (settings: EqSettings) => invoke<void>("set_eq_settings", { settings }),
   },
 };
