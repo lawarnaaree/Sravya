@@ -43,7 +43,7 @@ export default function AlbumGrid({ albums, tracks }: AlbumGridProps) {
       <div
         className="grid gap-4"
         style={{
-          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
         }}
       >
         {albums.map((album) => (
@@ -58,47 +58,46 @@ function AlbumCard({ album, onPlay }: { album: Album; onPlay: () => void }) {
   const img = coverUrl(album.coverPath);
 
   return (
-    <div className="group flex flex-col gap-2">
+    <div
+      className="group card-lift cursor-pointer rounded-lg p-3"
+      style={{ background: "var(--surface-raised)" }}
+      onDoubleClick={onPlay}
+    >
       {/* Cover art */}
       <div
-        className="relative aspect-square w-full cursor-pointer overflow-hidden rounded-lg"
-        style={{ background: "var(--surface-raised)" }}
-        onDoubleClick={onPlay}
+        className="relative aspect-square w-full overflow-hidden rounded-lg"
+        style={{ background: "var(--overlay)" }}
       >
         {img ? (
-          <img
-            src={img}
-            alt={album.title}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
+          <img src={img} alt={album.title} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <Disc3 size={40} style={{ color: "var(--text-subtle)" }} />
           </div>
         )}
 
-        {/* Overlay play button */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-          <div className="art-gradient absolute inset-0" />
-          <button
-            onClick={onPlay}
-            className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full transition-transform duration-75 hover:scale-110 active:scale-90"
-            style={{
-              background: "var(--gold)",
-              color: "var(--text-on-gold)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-            }}
-            aria-label={`Play ${album.title}`}
-          >
-            <Play size={18} fill="currentColor" style={{ marginLeft: 2 }} />
-          </button>
-        </div>
+        {/* Hover play button — bottom right */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPlay();
+          }}
+          className="play-overlay absolute right-2 bottom-2 flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-75 hover:scale-110 active:scale-90"
+          style={{
+            background: "var(--gold)",
+            color: "var(--text-on-gold)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+          }}
+          aria-label={`Play ${album.title}`}
+        >
+          <Play size={16} fill="currentColor" style={{ marginLeft: 2 }} />
+        </button>
       </div>
 
       {/* Info */}
-      <div className="min-w-0">
+      <div className="mt-2 min-w-0">
         <p
-          className="truncate text-sm font-medium"
+          className="truncate text-sm font-semibold"
           style={{ color: "var(--text)" }}
           title={album.title}
         >

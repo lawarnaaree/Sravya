@@ -14,6 +14,7 @@ import {
   FileText,
   Volume2,
   VolumeX,
+  Heart,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { usePlayerStore } from "@/state/player";
@@ -129,7 +130,7 @@ export default function NowPlayingFull({ onClose }: Props) {
         <div
           className="absolute inset-0"
           style={{
-            background: "linear-gradient(180deg, rgba(9,9,15,0.2) 0%, rgba(9,9,15,0.55) 100%)",
+            background: "linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 100%)",
           }}
         />
       </div>
@@ -188,30 +189,40 @@ export default function NowPlayingFull({ onClose }: Props) {
 
           {/* Track info */}
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p
-                className="truncate text-xl leading-tight font-bold tracking-tight"
+                className="truncate text-2xl leading-tight font-bold tracking-tight"
                 style={{ color: "var(--text)" }}
                 title={currentTrack?.title}
               >
                 {currentTrack?.title ?? "Not Playing"}
               </p>
-              <p className="mt-0.5 truncate text-sm" style={{ color: "var(--text-muted)" }}>
+              <p className="mt-0.5 truncate text-base" style={{ color: "var(--text-muted)" }}>
                 {currentTrack?.artist ?? "—"}
               </p>
             </div>
-            {codecIsLossless && (
-              <span
-                className="mt-1 inline-flex shrink-0 items-center rounded px-2 py-0.5 text-[9px] font-bold tracking-widest uppercase"
-                style={{
-                  background: `${accentColor}22`,
-                  color: accentColor,
-                  border: `1px solid ${accentColor}55`,
-                }}
+            <div className="mt-1 flex shrink-0 items-center gap-2">
+              {codecIsLossless && (
+                <span
+                  className="inline-flex items-center rounded px-2 py-0.5 text-[9px] font-bold tracking-widest uppercase"
+                  style={{
+                    background: `${accentColor}22`,
+                    color: accentColor,
+                    border: `1px solid ${accentColor}55`,
+                  }}
+                >
+                  {currentTrack?.codec}
+                </span>
+              )}
+              <button
+                className="rounded-full p-1.5 transition-all hover:text-[var(--text)]"
+                style={{ color: "var(--text-subtle)" }}
+                aria-label="Like"
+                title="Like (coming soon)"
               >
-                {currentTrack?.codec}
-              </span>
-            )}
+                <Heart size={18} />
+              </button>
+            </div>
           </div>
 
           {/* Scrubber */}
@@ -263,11 +274,9 @@ export default function NowPlayingFull({ onClose }: Props) {
               onClick={() => (isPlaying ? api.playback.pause() : api.playback.resume())}
               className="flex h-14 w-14 items-center justify-center rounded-full transition-transform duration-75 hover:scale-105 active:scale-90"
               style={{
-                background: `linear-gradient(135deg, ${accentColor} 0%, #e8b862 100%)`,
-                color: "#0a0a14",
-                boxShadow: isPlaying
-                  ? `0 0 28px ${accentColor}88, 0 4px 16px rgba(0,0,0,0.5)`
-                  : "0 4px 16px rgba(0,0,0,0.5)",
+                background: "var(--text)",
+                color: "var(--bg)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
               }}
               aria-label={isPlaying ? "Pause" : "Play"}
             >

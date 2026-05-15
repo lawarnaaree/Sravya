@@ -194,7 +194,7 @@ export default function Settings() {
                 aria-label="Dark theme"
               >
                 {/* Preview swatch */}
-                <div style={{ background: "#09090f", padding: "0.75rem 1rem" }}>
+                <div style={{ background: "#121212", padding: "0.75rem 1rem" }}>
                   <div
                     style={{
                       display: "flex",
@@ -211,26 +211,26 @@ export default function Settings() {
                         style={{
                           height: 6,
                           borderRadius: 3,
-                          background: "#f2ede4",
+                          background: "#ffffff",
                           width: "60%",
                           marginBottom: 4,
                         }}
                       />
                       <div
-                        style={{ height: 4, borderRadius: 2, background: "#4a4660", width: "40%" }}
+                        style={{ height: 4, borderRadius: 2, background: "#6a6a6a", width: "40%" }}
                       />
                     </div>
                   </div>
                   <div
-                    style={{ height: 3, borderRadius: 2, background: "#252545", marginBottom: 4 }}
+                    style={{ height: 3, borderRadius: 2, background: "#282828", marginBottom: 4 }}
                   />
                   <div
-                    style={{ height: 3, borderRadius: 2, background: "#252545", width: "75%" }}
+                    style={{ height: 3, borderRadius: 2, background: "#282828", width: "75%" }}
                   />
                 </div>
                 <div
                   style={{
-                    background: "#0f0f1b",
+                    background: "#000000",
                     padding: "0.4rem 1rem",
                     display: "flex",
                     alignItems: "center",
@@ -238,7 +238,7 @@ export default function Settings() {
                   }}
                 >
                   <Moon size={12} color="#c9943a" />
-                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#f2ede4" }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#ffffff" }}>
                     Dark
                   </span>
                   {theme === "dark" && (
@@ -271,7 +271,7 @@ export default function Settings() {
                 }}
                 aria-label="Light theme"
               >
-                <div style={{ background: "#f2ede4", padding: "0.75rem 1rem" }}>
+                <div style={{ background: "#f8f5f0", padding: "0.75rem 1rem" }}>
                   <div
                     style={{
                       display: "flex",
@@ -288,21 +288,21 @@ export default function Settings() {
                         style={{
                           height: 6,
                           borderRadius: 3,
-                          background: "#0f0f1b",
+                          background: "#0a0a0a",
                           width: "60%",
                           marginBottom: 4,
                         }}
                       />
                       <div
-                        style={{ height: 4, borderRadius: 2, background: "#9090a8", width: "40%" }}
+                        style={{ height: 4, borderRadius: 2, background: "#8a8a8a", width: "40%" }}
                       />
                     </div>
                   </div>
                   <div
-                    style={{ height: 3, borderRadius: 2, background: "#d4cec4", marginBottom: 4 }}
+                    style={{ height: 3, borderRadius: 2, background: "#e0dbd3", marginBottom: 4 }}
                   />
                   <div
-                    style={{ height: 3, borderRadius: 2, background: "#d4cec4", width: "75%" }}
+                    style={{ height: 3, borderRadius: 2, background: "#e0dbd3", width: "75%" }}
                   />
                 </div>
                 <div

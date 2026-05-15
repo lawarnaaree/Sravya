@@ -29,17 +29,14 @@ export default function Search() {
   return (
     <div className="flex h-full flex-col">
       {/* Search bar */}
-      <div
-        className="shrink-0 px-6 pt-6 pb-4"
-        style={{ borderBottom: "1px solid var(--border-subtle)" }}
-      >
-        <h1 className="mb-4 text-2xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
+      <div className="shrink-0 px-6 pt-8 pb-5">
+        <h1 className="mb-4 text-3xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
           Search
         </h1>
         <div className="relative max-w-lg">
           <SearchIcon
             size={16}
-            className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2"
+            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2"
             style={{ color: "var(--text-subtle)" }}
           />
           <input
@@ -48,17 +45,19 @@ export default function Search() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Tracks, albums, artists…"
             autoFocus
-            className="w-full rounded-lg py-2.5 pr-4 pl-10 text-sm transition-all outline-none"
+            className="w-full rounded-full py-3 pr-5 pl-11 text-sm font-medium transition-all outline-none"
             style={{
               background: "var(--surface-raised)",
-              border: "1px solid var(--border)",
+              border: "2px solid transparent",
               color: "var(--text)",
             }}
             onFocus={(e) => {
               (e.target as HTMLInputElement).style.borderColor = "var(--gold)";
+              (e.target as HTMLInputElement).style.background = "var(--surface-high)";
             }}
             onBlur={(e) => {
-              (e.target as HTMLInputElement).style.borderColor = "var(--border)";
+              (e.target as HTMLInputElement).style.borderColor = "transparent";
+              (e.target as HTMLInputElement).style.background = "var(--surface-raised)";
             }}
           />
         </div>

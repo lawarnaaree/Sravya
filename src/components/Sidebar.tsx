@@ -23,22 +23,22 @@ function NavItem({
       to={to}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-md py-2 pr-3 text-sm font-medium transition-all duration-150",
+          "flex items-center gap-3 rounded-md py-2.5 pr-3 text-sm font-semibold transition-all duration-150",
           isActive
-            ? "pl-[10px] text-[var(--gold)]"
+            ? "pl-[10px] text-[var(--text)]"
             : "pl-3 text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
         )
       }
       style={({ isActive }) =>
         isActive
           ? {
-              background: "var(--gold-glow)",
+              background: "var(--surface-raised)",
               borderLeft: "2px solid var(--gold)",
             }
           : { borderLeft: "2px solid transparent" }
       }
     >
-      <Icon size={16} />
+      <Icon size={20} />
       {label}
     </NavLink>
   );
@@ -55,49 +55,9 @@ export default function Sidebar() {
       className="flex shrink-0 flex-col py-4"
       style={{
         width: "var(--sidebar-w)",
-        background: "var(--surface)",
-        borderRight: "1px solid var(--border-subtle)",
+        background: "var(--sidebar-bg)",
       }}
     >
-      {/* Logo */}
-      <div className="mb-6 flex items-center gap-2.5 px-4">
-        <span
-          style={{
-            fontFamily: "'Noto Sans Devanagari', serif",
-            fontSize: "24px",
-            fontWeight: 700,
-            color: "var(--gold)",
-            lineHeight: 1,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          श्र
-        </span>
-        <div className="flex flex-col">
-          <span
-            style={{
-              fontSize: "12px",
-              fontWeight: 700,
-              letterSpacing: "0.14em",
-              color: "var(--text)",
-              lineHeight: 1,
-            }}
-          >
-            SRAVYA
-          </span>
-          <span
-            style={{
-              fontSize: "9px",
-              color: "var(--text-subtle)",
-              letterSpacing: "0.06em",
-              lineHeight: 1.4,
-            }}
-          >
-            श्रव्य
-          </span>
-        </div>
-      </div>
-
       {/* Main nav */}
       <nav className="flex flex-col gap-0.5 px-2">
         {mainNav.map((item) => (
@@ -108,26 +68,29 @@ export default function Sidebar() {
       {/* Divider */}
       <div className="mx-4 my-4 h-px" style={{ background: "var(--border-subtle)" }} />
 
-      {/* Playlists */}
+      {/* Your Library */}
       <div className="flex flex-1 flex-col overflow-hidden px-2">
         <div className="mb-2 flex items-center justify-between px-3">
-          <span
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              letterSpacing: "0.1em",
-              color: "var(--text-subtle)",
-            }}
-          >
-            PLAYLISTS
-          </span>
+          <div className="flex items-center gap-2">
+            <ListMusic size={18} style={{ color: "var(--text-subtle)" }} />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                color: "var(--text-subtle)",
+              }}
+            >
+              Your Library
+            </span>
+          </div>
           <NavLink
-            to="/playlists"
-            title="Manage playlists"
-            className="rounded p-0.5 transition-colors"
+            to="/playlists?create=true"
+            title="New playlist"
+            className="rounded p-0.5 transition-colors hover:text-[var(--text)]"
             style={{ color: "var(--text-subtle)" }}
           >
-            <Plus size={12} />
+            <Plus size={14} />
           </NavLink>
         </div>
 
@@ -143,14 +106,13 @@ export default function Sidebar() {
                 to={`/playlists?id=${pl.id}`}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors",
+                    "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
                     isActive
-                      ? "text-[var(--gold)]"
+                      ? "bg-[var(--surface-raised)] text-[var(--text)]"
                       : "text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
                   )
                 }
               >
-                <ListMusic size={12} className="shrink-0" />
                 <span className="truncate">{pl.name}</span>
               </NavLink>
             ))

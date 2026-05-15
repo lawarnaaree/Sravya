@@ -10,6 +10,7 @@ import {
   Repeat1,
   Music2,
   Maximize2,
+  Heart,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { usePlayerStore } from "@/state/player";
@@ -55,8 +56,8 @@ export default function NowPlayingBar() {
         borderTop: "1px solid var(--border-subtle)",
       }}
     >
-      {/* Track info — left third */}
-      <div className="group flex w-56 min-w-0 items-center gap-3">
+      {/* Track info — left 30% */}
+      <div className="group flex w-[30%] min-w-0 items-center gap-3">
         {currentTrack ? (
           <>
             <motion.div
@@ -69,19 +70,20 @@ export default function NowPlayingBar() {
                 <img
                   src={coverUrl(currentTrack.coverPath)}
                   alt={currentTrack.album}
-                  className="glow-gold h-12 w-12 rounded-sm object-cover"
+                  className="h-14 w-14 rounded-sm object-cover"
+                  style={{ boxShadow: "0 4px 16px rgba(0,0,0,0.5)" }}
                 />
               ) : (
                 <div
-                  className="flex h-12 w-12 items-center justify-center rounded-sm"
+                  className="flex h-14 w-14 items-center justify-center rounded-sm"
                   style={{ background: "var(--surface-raised)" }}
                 >
-                  <Music2 size={16} style={{ color: "var(--text-subtle)" }} />
+                  <Music2 size={18} style={{ color: "var(--text-subtle)" }} />
                 </div>
               )}
             </motion.div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold" style={{ color: "var(--text)" }}>
                 {currentTrack.title}
               </p>
               <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
@@ -100,23 +102,21 @@ export default function NowPlayingBar() {
                 </span>
               )}
             </div>
-            {currentTrack && (
-              <button
-                onClick={() => setFullScreen(true)}
-                className="ml-1 shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-                style={{ color: "var(--text-subtle)" }}
-                title="Open full player"
-              >
-                <Maximize2 size={11} />
-              </button>
-            )}
+            <button
+              className="shrink-0 rounded p-1 opacity-0 transition-all group-hover:opacity-100 hover:text-[var(--text)]"
+              style={{ color: "var(--text-subtle)" }}
+              aria-label="Like"
+              title="Like (coming soon)"
+            >
+              <Heart size={14} />
+            </button>
           </>
         ) : (
           <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-sm"
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-sm"
             style={{ background: "var(--surface-raised)" }}
           >
-            <Music2 size={16} style={{ color: "var(--text-subtle)" }} />
+            <Music2 size={18} style={{ color: "var(--text-subtle)" }} />
           </div>
         )}
       </div>
@@ -124,7 +124,7 @@ export default function NowPlayingBar() {
       {/* Controls + scrubber — center */}
       <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
         {/* Transport buttons */}
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-6">
           <button
             onClick={() => api.playback.command({ type: "setShuffle", enabled: !shuffle })}
             className={cn(
@@ -145,21 +145,20 @@ export default function NowPlayingBar() {
             <SkipBack size={18} />
           </button>
 
-          {/* Play / Pause — gold circle */}
+          {/* Play / Pause — white Spotify-style circle */}
           <button
             onClick={handlePlayPause}
-            className="flex h-9 w-9 items-center justify-center rounded-full transition-transform duration-75 hover:scale-105 active:scale-90"
+            className="flex h-8 w-8 items-center justify-center rounded-full transition-transform duration-75 hover:scale-105 active:scale-90"
             style={{
-              background: "var(--gold)",
-              color: "var(--text-on-gold)",
-              boxShadow: isPlaying ? "0 0 18px rgba(201,148,58,0.55)" : "0 2px 8px rgba(0,0,0,0.4)",
+              background: "var(--text)",
+              color: "var(--bg)",
             }}
             aria-label={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? (
-              <Pause size={16} fill="currentColor" />
+              <Pause size={14} fill="currentColor" />
             ) : (
-              <Play size={16} fill="currentColor" style={{ marginLeft: 2 }} />
+              <Play size={14} fill="currentColor" style={{ marginLeft: 1 }} />
             )}
           </button>
 
@@ -192,7 +191,7 @@ export default function NowPlayingBar() {
         </div>
 
         {/* Scrubber */}
-        <div className="flex w-full max-w-md items-center gap-2">
+        <div className="flex w-full max-w-lg items-center gap-2">
           <span
             className="w-9 text-right text-[11px] tabular-nums"
             style={{ color: "var(--text-subtle)" }}
@@ -205,11 +204,7 @@ export default function NowPlayingBar() {
             min={0}
             max={durationMs || 100}
             value={positionMs}
-            style={
-              {
-                "--pct": `${progress}%`,
-              } as React.CSSProperties
-            }
+            style={{ "--pct": `${progress}%` } as React.CSSProperties}
             onChange={handleScrub}
             aria-label="Seek"
           />
@@ -219,8 +214,8 @@ export default function NowPlayingBar() {
         </div>
       </div>
 
-      {/* Volume — right third */}
-      <div className="flex w-40 items-center justify-end gap-2">
+      {/* Volume + maximize — right 30% */}
+      <div className="flex w-[30%] items-center justify-end gap-2">
         <button
           onClick={() => api.playback.command({ type: muted ? "unmute" : "mute" })}
           style={{ color: "var(--text-muted)" }}
@@ -240,6 +235,16 @@ export default function NowPlayingBar() {
           style={{ "--pct": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
           aria-label="Volume"
         />
+        {currentTrack && (
+          <button
+            onClick={() => setFullScreen(true)}
+            className="ml-1 shrink-0 rounded p-0.5 transition-all hover:text-[var(--text)]"
+            style={{ color: "var(--text-subtle)" }}
+            title="Open full player"
+          >
+            <Maximize2 size={14} />
+          </button>
+        )}
       </div>
     </footer>
   );

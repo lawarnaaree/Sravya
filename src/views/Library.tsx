@@ -1,11 +1,21 @@
-import * as Tabs from "@radix-ui/react-tabs";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Music2, Disc3, Mic2 } from "lucide-react";
 import { api } from "@/api";
 import TrackList from "@/components/TrackList";
 import AlbumGrid from "@/components/AlbumGrid";
 
+type Tab = "songs" | "albums" | "artists";
+
+const tabs: { value: Tab; label: string; icon: React.ElementType }[] = [
+  { value: "songs", label: "Songs", icon: Music2 },
+  { value: "albums", label: "Albums", icon: Disc3 },
+  { value: "artists", label: "Artists", icon: Mic2 },
+];
+
 export default function Library() {
+  const [activeTab, setActiveTab] = useState<Tab>("songs");
+
   const tracksQuery = useQuery({
     queryKey: ["tracks"],
     queryFn: () => api.library.tracks(5000, 0),
@@ -34,88 +44,89 @@ export default function Library() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
-      <div
-        className="shrink-0 px-6 pt-6 pb-3"
-        style={{ borderBottom: "1px solid var(--border-subtle)" }}
-      >
-        <h1 className="mb-0.5 text-2xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
-          Library
-        </h1>
-        {stats && (
-          <p className="text-xs" style={{ color: "var(--text-subtle)" }}>
-            {stats.trackCount.toLocaleString()} tracks · {stats.albumCount.toLocaleString()} albums
-            · {stats.artistCount.toLocaleString()} artists
-            {totalMs > 0 ? ` · ${hours > 0 ? `${hours}h ` : ""}${mins}m` : ""}
+      {/* Gradient header */}
+      <div className="page-header-gradient shrink-0">
+        <div className="px-6 pt-8 pb-4">
+          <p
+            className="mb-1 text-[10px] font-semibold tracking-widest uppercase"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Your
           </p>
-        )}
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
+            Library
+          </h1>
+          {stats && (
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+              {stats.trackCount.toLocaleString()} tracks · {stats.albumCount.toLocaleString()}{" "}
+              albums · {stats.artistCount.toLocaleString()} artists
+              {totalMs > 0 ? ` · ${hours > 0 ? `${hours}h ` : ""}${mins}m` : ""}
+            </p>
+          )}
+        </div>
+
+        {/* Pill tabs */}
+        <div className="flex gap-2 px-6 pb-4">
+          {tabs.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setActiveTab(value)}
+              className="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-150"
+              style={
+                activeTab === value
+                  ? { background: "var(--gold)", color: "var(--text-on-gold)" }
+                  : {
+                      background: "var(--surface-raised)",
+                      color: "var(--text-muted)",
+                    }
+              }
+            >
+              <Icon size={13} />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs.Root defaultValue="songs" className="flex min-h-0 flex-1 flex-col">
-        <Tabs.List
-          className="flex shrink-0 gap-0 px-4"
-          style={{ borderBottom: "1px solid var(--border-subtle)" }}
-        >
-          {[
-            { value: "songs", label: "Songs", icon: Music2 },
-            { value: "albums", label: "Albums", icon: Disc3 },
-            { value: "artists", label: "Artists", icon: Mic2 },
-          ].map(({ value, label, icon: Icon }) => (
-            <Tabs.Trigger
-              key={value}
-              value={value}
-              className="sravya-tab flex items-center gap-2 border-b-2 border-transparent px-4 py-2.5 text-sm font-medium transition-colors outline-none data-[state=active]:border-[var(--gold)] data-[state=active]:text-[var(--gold)]"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <Icon size={14} />
-              {label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        <Tabs.Content value="songs" className="min-h-0 flex-1 overflow-hidden outline-none">
-          {tracksQuery.isPending ? (
+      {/* Tab content */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {activeTab === "songs" &&
+          (tracksQuery.isPending ? (
             <Spinner />
           ) : tracks.length === 0 ? (
             <EmptyState message="Add a folder in Settings to get started." />
           ) : (
             <TrackList tracks={tracks} showAlbum />
-          )}
-        </Tabs.Content>
+          ))}
 
-        <Tabs.Content value="albums" className="min-h-0 flex-1 overflow-auto outline-none">
-          {albumsQuery.isPending ? <Spinner /> : <AlbumGrid albums={albums} tracks={tracks} />}
-        </Tabs.Content>
+        {activeTab === "albums" &&
+          (albumsQuery.isPending ? <Spinner /> : <AlbumGrid albums={albums} tracks={tracks} />)}
 
-        <Tabs.Content value="artists" className="min-h-0 flex-1 overflow-auto outline-none">
-          {artistsQuery.isPending ? (
+        {activeTab === "artists" &&
+          (artistsQuery.isPending ? (
             <Spinner />
           ) : artists.length === 0 ? (
             <EmptyState message="No artists found." />
           ) : (
-            <div>
+            <div className="h-full overflow-auto">
               {artists.map((artist) => (
                 <div
                   key={artist.id}
-                  className="flex items-center gap-4 border-b px-6 py-3 transition-colors"
-                  style={{
-                    borderColor: "var(--border-subtle)",
-                    cursor: "default",
-                  }}
+                  className="flex items-center gap-4 px-6 py-3 transition-colors"
+                  style={{ cursor: "default", borderBottom: "1px solid var(--border-subtle)" }}
                   onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLElement).style.background = "var(--surface-raised)")
+                    ((e.currentTarget as HTMLElement).style.background = "var(--surface-high)")
                   }
                   onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "")}
                 >
                   <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
                     style={{ background: "var(--overlay)" }}
                   >
-                    <Mic2 size={14} style={{ color: "var(--text-subtle)" }} />
+                    <Mic2 size={16} style={{ color: "var(--text-subtle)" }} />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                    <p className="truncate text-sm font-semibold" style={{ color: "var(--text)" }}>
                       {artist.name}
                     </p>
                     <p className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -125,9 +136,8 @@ export default function Library() {
                 </div>
               ))}
             </div>
-          )}
-        </Tabs.Content>
-      </Tabs.Root>
+          ))}
+      </div>
     </div>
   );
 }

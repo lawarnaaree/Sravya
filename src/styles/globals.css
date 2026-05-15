@@ -13,16 +13,16 @@
 
 @layer base {
   :root {
-    /* Backgrounds */
-    --bg:            #09090f;
-    --surface:       #0f0f1b;
-    --surface-raised:#171728;
-    --surface-high:  #1e1e35;
-    --overlay:       #252545;
+    /* Backgrounds — Spotify-grade true black */
+    --bg:            #000000;
+    --surface:       #121212;
+    --surface-raised:#1a1a1a;
+    --surface-high:  #242424;
+    --overlay:       #2a2a2a;
 
     /* Borders */
-    --border:        #252540;
-    --border-subtle: #1a1a30;
+    --border:        #282828;
+    --border-subtle: #1c1c1c;
 
     /* Saffron gold — the Sravya signature */
     --gold:          #c9943a;
@@ -35,22 +35,25 @@
     --crimson-dim:   #7a2440;
 
     /* Text */
-    --text:          #f2ede4;
-    --text-muted:    #8e8a9e;
-    --text-subtle:   #4a4660;
-    --text-on-gold:  #0a0a14;
+    --text:          #ffffff;
+    --text-muted:    #a7a7a7;
+    --text-subtle:   #6a6a6a;
+    --text-on-gold:  #000000;
 
     /* Functional */
     --success:       #4caf7c;
     --error:         #e05c5c;
 
     /* Scrubber */
-    --scrubber-fill:  rgba(255, 255, 255, 0.9);
-    --scrubber-track: rgba(255, 255, 255, 0.18);
+    --scrubber-fill:  #ffffff;
+    --scrubber-track: #3a3a3a;
+
+    /* Sidebar */
+    --sidebar-bg:    #000000;
 
     /* Spacing / sizing */
-    --sidebar-w:     224px;
-    --nowplay-h:     88px;
+    --sidebar-w:     240px;
+    --nowplay-h:     90px;
     --radius-sm:     6px;
     --radius:        10px;
     --radius-lg:     16px;
@@ -58,21 +61,23 @@
 
   /* ── Light theme ─────────────────────────────────────────────────────────── */
   [data-theme="light"] {
-    --bg:            #f2ede4;
+    --bg:            #f8f5f0;
     --surface:       #ffffff;
-    --surface-raised:#ebe6dc;
-    --surface-high:  #e2dcd2;
-    --overlay:       #d4cec4;
+    --surface-raised:#f0ebe3;
+    --surface-high:  #e8e3db;
+    --overlay:       #ddd8d0;
 
-    --border:        #d6d0c6;
-    --border-subtle: #e4dfd6;
+    --border:        #e0dbd3;
+    --border-subtle: #ebe6de;
 
-    --text:          #0f0f1b;
-    --text-muted:    #5a5672;
-    --text-subtle:   #9090a8;
+    --text:          #0a0a0a;
+    --text-muted:    #4a4a4a;
+    --text-subtle:   #8a8a8a;
     --text-on-gold:  #ffffff;
 
-    --scrubber-fill:  rgba(15, 15, 27, 0.8);
+    --sidebar-bg:    #f0ebe3;
+
+    --scrubber-fill:  rgba(10, 10, 10, 0.8);
     --scrubber-track: rgba(0, 0, 0, 0.14);
   }
 
@@ -142,8 +147,36 @@
     background: linear-gradient(
       to bottom,
       transparent 40%,
-      rgba(9, 9, 15, 0.85) 100%
+      rgba(0, 0, 0, 0.85) 100%
     );
+  }
+
+  /* Spotify-style gold gradient page header */
+  .page-header-gradient {
+    background: linear-gradient(to bottom, rgba(201, 148, 58, 0.28) 0%, var(--bg) 300px);
+  }
+
+  /* Card hover lift */
+  .card-lift {
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  }
+  .card-lift:hover {
+    background: var(--surface-high) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Play button overlay on album cards */
+  .play-overlay {
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+  .group:hover .play-overlay {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
   }
 }
 
@@ -161,6 +194,21 @@
   .animate-fade-in  { animation: fade-in  0.2s ease both; }
   .animate-slide-up { animation: slide-up 0.25s ease both; }
   .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+
+  /* Animated now-playing bars */
+  @keyframes now-playing-bar {
+    0%, 100% { height: 4px; }
+    50%       { height: 12px; }
+  }
+  .np-bar {
+    width: 3px;
+    background: var(--gold);
+    border-radius: 1px;
+    animation: now-playing-bar 0.8s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .np-bar:nth-child(2) { animation-delay: 0.15s; }
+  .np-bar:nth-child(3) { animation-delay: 0.3s; }
 }
 
 /* ── Range input (scrubber / volume) ─────────────────────────────────────── */
@@ -172,7 +220,7 @@ input[type="range"] {
   height: 20px;   /* hit-target height */
 }
 
-input[type="range"]::-webkit-slider-track {
+input[type="range"]::-webkit-slider-runnable-track {
   background: var(--scrubber-track);
   height: 4px;
   border-radius: 2px;
@@ -184,7 +232,7 @@ input[type="range"]::-webkit-slider-thumb {
   height: 0px;
   border-radius: 50%;
   background: var(--text);
-  margin-top: -4px;
+  margin-top: -4.5px;
   transition: width 0.1s, height 0.1s, background 0.1s;
   box-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
@@ -215,7 +263,7 @@ input[type="range"]:active::-webkit-slider-thumb {
 }
 
 /* Progress fill via CSS custom property --pct injected by React */
-input[type="range"].scrubber::-webkit-slider-track {
+input[type="range"].scrubber::-webkit-slider-runnable-track {
   background: linear-gradient(
     to right,
     var(--scrubber-fill) 0%,
