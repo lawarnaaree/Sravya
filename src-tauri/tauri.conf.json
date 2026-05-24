@@ -5,7 +5,7 @@
   "identifier": "com.sravya.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://192.168.1.66:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
