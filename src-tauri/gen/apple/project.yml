@@ -57,6 +57,11 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 0.1.0
         CFBundleVersion: "0.1.0"
+        NSLocalNetworkUsageDescription: "Sravya uses your local network to pair with and sync your music library from your desktop."
+        NSBonjourServices:
+          - _sravya._tcp
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     entitlements:
       path: sravya_iOS/sravya_iOS.entitlements
     scheme:
