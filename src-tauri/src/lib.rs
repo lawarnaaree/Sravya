@@ -79,6 +79,26 @@ pub fn run() {
                 }
             }
 
+            // On mobile, auto-scan the Documents directory where users can drop files
+            #[cfg(mobile)]
+            {
+                if let Ok(doc_dir) = app.path().document_dir() {
+                    let path_str = doc_dir.to_string_lossy().into_owned();
+                    let db_clone = db.clone();
+                    let covers_clone = covers_dir.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = adapters::db::add_watched_folder(&db_clone, &path_str).await;
+                        let _ = adapters::fs_scan::scan_folder(
+                            &db_clone,
+                            &path_str,
+                            &covers_clone,
+                            |_| {},
+                        )
+                        .await;
+                    });
+                }
+            }
+
             let (lan_ws_tx, _) = broadcast::channel::<serde_json::Value>(64);
             let lan_server_port = Arc::new(AtomicU16::new(0));
             let lan_pairing_challenge = Arc::new(AsyncMutex::new(None::<String>));

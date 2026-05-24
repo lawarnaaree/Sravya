@@ -297,6 +297,9 @@ pub struct AudioEngine {
 
 impl AudioEngine {
     pub fn new() -> Self {
+        #[cfg(target_os = "ios")]
+        configure_ios_audio_session();
+
         let (tx, rx) = std::sync::mpsc::sync_channel::<AudioCommand>(64);
         let state = Arc::new(Mutex::new(EngineState::default()));
         let eq_config = Arc::new(RwLock::new(EqConfig::default()));
@@ -616,5 +619,29 @@ fn load_entry(
             Err(e) => eprintln!("Decode error {:?}: {e}", entry.path),
         },
         Err(e) => eprintln!("File open error {:?}: {e}", entry.path),
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn configure_ios_audio_session() {
+    use objc2::rc::Id;
+    use objc2::runtime::{AnyClass, AnyObject};
+    use objc2::{msg_send, ClassType};
+    use std::ffi::CString;
+
+    unsafe {
+        let cls = AnyClass::get("AVAudioSession").expect("AVAudioSession not found");
+        let session: *mut AnyObject = msg_send![cls, sharedInstance];
+
+        // AVAudioSessionCategoryPlayback
+        let category_cls = AnyClass::get("NSString").unwrap();
+        let category_str = CString::new("AVAudioSessionCategoryPlayback").unwrap();
+        let category: *mut AnyObject =
+            msg_send![category_cls, stringWithUTF8String: category_str.as_ptr()];
+
+        let _: bool =
+            msg_send![session, setCategory: category error: std::ptr::null_mut::<*mut AnyObject>()];
+        let _: bool =
+            msg_send![session, setActive: true error: std::ptr::null_mut::<*mut AnyObject>()];
     }
 }

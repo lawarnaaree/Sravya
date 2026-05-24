@@ -1,0 +1,559 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		13A0F4D04737E8CFDF5F0C6F /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A38A50A496D3693C6141F991 /* Metal.framework */; };
+		1F8995062538C47ADA408847 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F6E92E6D5943AA4328DC9FC /* CoreGraphics.framework */; };
+		4959F37836AEA47F34FCEB43 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3006BB787555C9B76CF440DD /* WebKit.framework */; };
+		5FED096154B3DC27B938EF3D /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EFD2876577616DE9CC81EE62 /* MetalKit.framework */; };
+		6B3137223FFECEF5DB60E13F /* assets in Resources */ = {isa = PBXBuildFile; fileRef = C826B1865001CE88459A2BAE /* assets */; };
+		9DC194169032EA6AA3BE8775 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 88F911040FA423AC25195FF6 /* Assets.xcassets */; };
+		A5347DBC1A1FF887EAD2103B /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 087BFAA34467E5A16C09709D /* main.mm */; };
+		C083DD10FDEB4EF1C0FE84A0 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F10CA62BC8E7934FAF73E02 /* UIKit.framework */; };
+		C4A15FE63C826181C93035A4 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 129C15B39B56A4BDD4CA2A1D /* libapp.a */; };
+		CA10AC4A054CCB8040B30192 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0E2840C3374375D4B2221D4A /* QuartzCore.framework */; };
+		E0C32843CBE243703D6120AB /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 57A40C24436F6F3EDB89EF65 /* LaunchScreen.storyboard */; };
+		E8C45974F27268EDFBA73640 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5A749D8175CC51A2931DE88A /* Security.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0101C3BBA6DDBF059FDE784D /* change_log.rs */ = {isa = PBXFileReference; path = change_log.rs; sourceTree = "<group>"; };
+		039CABF7DE3BB74967386981 /* importer.rs */ = {isa = PBXFileReference; path = importer.rs; sourceTree = "<group>"; };
+		087BFAA34467E5A16C09709D /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		0E2840C3374375D4B2221D4A /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		0EA434E8295900FD2FEBA41C /* applemusic.rs */ = {isa = PBXFileReference; path = applemusic.rs; sourceTree = "<group>"; };
+		0FF00131D80D135027D8DC03 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		129C15B39B56A4BDD4CA2A1D /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		1F10CA62BC8E7934FAF73E02 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		222CB498C7E4054A5839FF74 /* identity.rs */ = {isa = PBXFileReference; path = identity.rs; sourceTree = "<group>"; };
+		25CA46BB9DC81736BCCC3A28 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		28C2B82B6F791065E1D8360C /* events.rs */ = {isa = PBXFileReference; path = events.rs; sourceTree = "<group>"; };
+		3006BB787555C9B76CF440DD /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		30DE3030463CFA6E6064D2FD /* sravya_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = sravya_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		327639395E5178D32539D32A /* sync_client.rs */ = {isa = PBXFileReference; path = sync_client.rs; sourceTree = "<group>"; };
+		39CAC5126686FE04B1E6CE5B /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		3DA9A83E1520F332665CEF29 /* server.rs */ = {isa = PBXFileReference; path = server.rs; sourceTree = "<group>"; };
+		3F6E92E6D5943AA4328DC9FC /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		417F8550FA86898BED86F024 /* spotify.rs */ = {isa = PBXFileReference; path = spotify.rs; sourceTree = "<group>"; };
+		4409E4A89EA1FABF02946B28 /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		4AE5A26111A21CD5033BE37D /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		4BBFE283B8303343C0C95823 /* lrclib.rs */ = {isa = PBXFileReference; path = lrclib.rs; sourceTree = "<group>"; };
+		57A40C24436F6F3EDB89EF65 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		5A749D8175CC51A2931DE88A /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		6561C7C3CBE2E9D94C08EB4D /* mdns.rs */ = {isa = PBXFileReference; path = mdns.rs; sourceTree = "<group>"; };
+		692CB258D7C77095B7B872EC /* audio.rs */ = {isa = PBXFileReference; path = audio.rs; sourceTree = "<group>"; };
+		6FE0406D8B8ED6997D20E8D2 /* sharing_crypto.rs */ = {isa = PBXFileReference; path = sharing_crypto.rs; sourceTree = "<group>"; };
+		716044C26E41569F8A0D4D46 /* playback.rs */ = {isa = PBXFileReference; path = playback.rs; sourceTree = "<group>"; };
+		718CE8B0C4623A0CE7CB785E /* musicbrainz.rs */ = {isa = PBXFileReference; path = musicbrainz.rs; sourceTree = "<group>"; };
+		761A862B77336E9CED1960A4 /* playlist.rs */ = {isa = PBXFileReference; path = playlist.rs; sourceTree = "<group>"; };
+		819AA57D1FB56D217D072270 /* sharing.rs */ = {isa = PBXFileReference; path = sharing.rs; sourceTree = "<group>"; };
+		86EFDC05AA419703DCBA4FCF /* keychain.rs */ = {isa = PBXFileReference; path = keychain.rs; sourceTree = "<group>"; };
+		87D50DD54A18035EA6581F14 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		88F911040FA423AC25195FF6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		97957B6D0195DFD2AB3C2420 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		998A36257469FDF9499E3589 /* ytdlp.rs */ = {isa = PBXFileReference; path = ytdlp.rs; sourceTree = "<group>"; };
+		A38A50A496D3693C6141F991 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		A92821B8B49B5E87E1D5DD77 /* library.rs */ = {isa = PBXFileReference; path = library.rs; sourceTree = "<group>"; };
+		ABA87A03F73DD3BF999500EF /* sync.rs */ = {isa = PBXFileReference; path = sync.rs; sourceTree = "<group>"; };
+		AEA8DC65118B34BACEAA6B14 /* auth.rs */ = {isa = PBXFileReference; path = auth.rs; sourceTree = "<group>"; };
+		B7A7C6E434E99D42C6AEB1F3 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		BE3703B5CA7C1E0592DAF38F /* db.rs */ = {isa = PBXFileReference; path = db.rs; sourceTree = "<group>"; };
+		C45245D517AD4B2EE2F29888 /* protocol.rs */ = {isa = PBXFileReference; path = protocol.rs; sourceTree = "<group>"; };
+		C561AF6CE5ABCF0AC6B72062 /* sravya_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = sravya_iOS.entitlements; sourceTree = "<group>"; };
+		C826B1865001CE88459A2BAE /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		C8C4D1865820443030EA840D /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		CA6E59B77D70DBB66F2E85D6 /* youtube.rs */ = {isa = PBXFileReference; path = youtube.rs; sourceTree = "<group>"; };
+		D137EAA52AEB28A08D68D6C1 /* fs_scan.rs */ = {isa = PBXFileReference; path = fs_scan.rs; sourceTree = "<group>"; };
+		EFD2876577616DE9CC81EE62 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		F1DB7ABB9F5412D965D61B9F /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		42F0820416A250EBC0398975 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C4A15FE63C826181C93035A4 /* libapp.a in Frameworks */,
+				1F8995062538C47ADA408847 /* CoreGraphics.framework in Frameworks */,
+				13A0F4D04737E8CFDF5F0C6F /* Metal.framework in Frameworks */,
+				5FED096154B3DC27B938EF3D /* MetalKit.framework in Frameworks */,
+				CA10AC4A054CCB8040B30192 /* QuartzCore.framework in Frameworks */,
+				E8C45974F27268EDFBA73640 /* Security.framework in Frameworks */,
+				C083DD10FDEB4EF1C0FE84A0 /* UIKit.framework in Frameworks */,
+				4959F37836AEA47F34FCEB43 /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1C36FF6D290EA13F903EFE13 = {
+			isa = PBXGroup;
+			children = (
+				C826B1865001CE88459A2BAE /* assets */,
+				88F911040FA423AC25195FF6 /* Assets.xcassets */,
+				57A40C24436F6F3EDB89EF65 /* LaunchScreen.storyboard */,
+				434521D74B3918A7451AA1C4 /* Externals */,
+				ABE87D8BB9CEE3814464F968 /* Sources */,
+				B7308DE4BD838BC8A246EFF9 /* sravya_iOS */,
+				C6834813F6AF03662B444680 /* src */,
+				566FC547DCC4EE6FA3944A3B /* Frameworks */,
+				CCF8A1284E54A59F4C2D615F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		434521D74B3918A7451AA1C4 /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		5006816A4FB0DF8BDB88F9D5 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				97957B6D0195DFD2AB3C2420 /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		566FC547DCC4EE6FA3944A3B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				3F6E92E6D5943AA4328DC9FC /* CoreGraphics.framework */,
+				129C15B39B56A4BDD4CA2A1D /* libapp.a */,
+				A38A50A496D3693C6141F991 /* Metal.framework */,
+				EFD2876577616DE9CC81EE62 /* MetalKit.framework */,
+				0E2840C3374375D4B2221D4A /* QuartzCore.framework */,
+				5A749D8175CC51A2931DE88A /* Security.framework */,
+				1F10CA62BC8E7934FAF73E02 /* UIKit.framework */,
+				3006BB787555C9B76CF440DD /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5AAA721AFCE21EE0FFC004B6 /* adapters */ = {
+			isa = PBXGroup;
+			children = (
+				0EA434E8295900FD2FEBA41C /* applemusic.rs */,
+				692CB258D7C77095B7B872EC /* audio.rs */,
+				BE3703B5CA7C1E0592DAF38F /* db.rs */,
+				D137EAA52AEB28A08D68D6C1 /* fs_scan.rs */,
+				4BBFE283B8303343C0C95823 /* lrclib.rs */,
+				0FF00131D80D135027D8DC03 /* mod.rs */,
+				718CE8B0C4623A0CE7CB785E /* musicbrainz.rs */,
+				417F8550FA86898BED86F024 /* spotify.rs */,
+				CA6E59B77D70DBB66F2E85D6 /* youtube.rs */,
+				998A36257469FDF9499E3589 /* ytdlp.rs */,
+			);
+			path = adapters;
+			sourceTree = "<group>";
+		};
+		620B1FA15FCB3BD4D6A8F604 /* core */ = {
+			isa = PBXGroup;
+			children = (
+				039CABF7DE3BB74967386981 /* importer.rs */,
+				A92821B8B49B5E87E1D5DD77 /* library.rs */,
+				87D50DD54A18035EA6581F14 /* mod.rs */,
+				716044C26E41569F8A0D4D46 /* playback.rs */,
+				761A862B77336E9CED1960A4 /* playlist.rs */,
+				819AA57D1FB56D217D072270 /* sharing.rs */,
+				ABA87A03F73DD3BF999500EF /* sync.rs */,
+			);
+			path = core;
+			sourceTree = "<group>";
+		};
+		643C52E185759DD282637480 /* sravya */ = {
+			isa = PBXGroup;
+			children = (
+				087BFAA34467E5A16C09709D /* main.mm */,
+				5006816A4FB0DF8BDB88F9D5 /* bindings */,
+			);
+			path = sravya;
+			sourceTree = "<group>";
+		};
+		ABE87D8BB9CEE3814464F968 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				643C52E185759DD282637480 /* sravya */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		AE72385A7DDE9F06C22D335E /* lan */ = {
+			isa = PBXGroup;
+			children = (
+				AEA8DC65118B34BACEAA6B14 /* auth.rs */,
+				0101C3BBA6DDBF059FDE784D /* change_log.rs */,
+				6561C7C3CBE2E9D94C08EB4D /* mdns.rs */,
+				4AE5A26111A21CD5033BE37D /* mod.rs */,
+				C45245D517AD4B2EE2F29888 /* protocol.rs */,
+				3DA9A83E1520F332665CEF29 /* server.rs */,
+				327639395E5178D32539D32A /* sync_client.rs */,
+			);
+			path = lan;
+			sourceTree = "<group>";
+		};
+		B7308DE4BD838BC8A246EFF9 /* sravya_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				25CA46BB9DC81736BCCC3A28 /* Info.plist */,
+				C561AF6CE5ABCF0AC6B72062 /* sravya_iOS.entitlements */,
+			);
+			path = sravya_iOS;
+			sourceTree = "<group>";
+		};
+		C6834813F6AF03662B444680 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				F1DB7ABB9F5412D965D61B9F /* commands.rs */,
+				C8C4D1865820443030EA840D /* error.rs */,
+				28C2B82B6F791065E1D8360C /* events.rs */,
+				B7A7C6E434E99D42C6AEB1F3 /* lib.rs */,
+				4409E4A89EA1FABF02946B28 /* main.rs */,
+				5AAA721AFCE21EE0FFC004B6 /* adapters */,
+				620B1FA15FCB3BD4D6A8F604 /* core */,
+				DB0E890BECEC1E576C7F2988 /* crypto */,
+				AE72385A7DDE9F06C22D335E /* lan */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		CCF8A1284E54A59F4C2D615F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				30DE3030463CFA6E6064D2FD /* sravya_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DB0E890BECEC1E576C7F2988 /* crypto */ = {
+			isa = PBXGroup;
+			children = (
+				222CB498C7E4054A5839FF74 /* identity.rs */,
+				86EFDC05AA419703DCBA4FCF /* keychain.rs */,
+				39CAC5126686FE04B1E6CE5B /* mod.rs */,
+				6FE0406D8B8ED6997D20E8D2 /* sharing_crypto.rs */,
+			);
+			path = crypto;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AAF76A80B18878E5819FB861 /* sravya_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0B8AECF179F8A0403979EE5 /* Build configuration list for PBXNativeTarget "sravya_iOS" */;
+			buildPhases = (
+				81966B1217E7C347A7B5A9E5 /* Build Rust Code */,
+				036D8F1B37622B330A0EF892 /* Sources */,
+				779959DA7434C604705AD642 /* Resources */,
+				42F0820416A250EBC0398975 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = sravya_iOS;
+			packageProductDependencies = (
+			);
+			productName = sravya_iOS;
+			productReference = 30DE3030463CFA6E6064D2FD /* sravya_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		206C9A9DFE8B587A9FD14AA4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					AAF76A80B18878E5819FB861 = {
+						DevelopmentTeam = 68HPA7WS9G;
+					};
+				};
+			};
+			buildConfigurationList = 2527B7904D4B7F2BDA4FA573 /* Build configuration list for PBXProject "sravya" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1C36FF6D290EA13F903EFE13;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = CCF8A1284E54A59F4C2D615F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AAF76A80B18878E5819FB861 /* sravya_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		779959DA7434C604705AD642 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9DC194169032EA6AA3BE8775 /* Assets.xcassets in Resources */,
+				E0C32843CBE243703D6120AB /* LaunchScreen.storyboard in Resources */,
+				6B3137223FFECEF5DB60E13F /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		81966B1217E7C347A7B5A9E5 /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "pnpm tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		036D8F1B37622B330A0EF892 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5347DBC1A1FF887EAD2103B /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		181A7E802F0539CAAEEDDB48 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		A2FAD5874C0736FBA853BFE2 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = sravya_iOS/sravya_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "68HPA7WS9G";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = sravya_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sravya.app;
+				PRODUCT_NAME = "Sravya";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		CD3E2E5BB91D8D4044238DC2 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = sravya_iOS/sravya_iOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "68HPA7WS9G";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = sravya_iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sravya.app;
+				PRODUCT_NAME = "Sravya";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		CDDC6CD0068FD206FCF76041 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2527B7904D4B7F2BDA4FA573 /* Build configuration list for PBXProject "sravya" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CDDC6CD0068FD206FCF76041 /* debug */,
+				181A7E802F0539CAAEEDDB48 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		C0B8AECF179F8A0403979EE5 /* Build configuration list for PBXNativeTarget "sravya_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CD3E2E5BB91D8D4044238DC2 /* debug */,
+				A2FAD5874C0736FBA853BFE2 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 206C9A9DFE8B587A9FD14AA4 /* Project object */;
+}
