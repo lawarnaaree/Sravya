@@ -219,16 +219,38 @@ export const api = {
     beginPairing: () => invoke<PairingInfo>("begin_pairing"),
     getPairedDevices: () => invoke<PairedDevice[]>("get_paired_devices"),
     revokeDevice: (deviceId: string) => invoke<void>("revoke_device", { deviceId }),
-    discoverServers: (timeoutSecs?: number) =>
-      invoke<DiscoveredServer[]>("discover_servers", { timeoutSecs: timeoutSecs ?? 5 }),
-    initiatePairing: (serverUrl: string) =>
-      invoke<{ challenge: string; serverName: string }>("initiate_pairing", { serverUrl }),
-    completePairing: (serverUrl: string, deviceName: string, challenge: string) =>
-      invoke<{ deviceId: string; success: boolean }>("complete_pairing", {
-        serverUrl,
-        deviceName,
-        challenge,
-      }),
+    discoverServers: async (timeoutSecs?: number) => {
+      // Dummy fetch to trigger the iOS Local Network permission prompt
+      try {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 200);
+        await fetch("http://192.168.254.254", { mode: "no-cors", signal: controller.signal });
+      } catch (e) {}
+      return invoke<DiscoveredServer[]>("discover_servers", { timeoutSecs: timeoutSecs ?? 5 });
+    },
+    initiatePairing: async (serverUrl: string) => {
+      const resp = await fetch(`${serverUrl}/pairing/begin`, { method: "POST" });
+      if (!resp.ok) throw new Error("Failed to initiate pairing");
+      return resp.json();
+    },
+    completePairing: async (serverUrl: string, deviceName: string, challenge: string) => {
+      const [pubkey, challengeSig] = await invoke<[string, string]>("sign_pairing_challenge", { challenge });
+      const resp = await fetch(`${serverUrl}/pairing/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceName,
+          devicePubkey: pubkey,
+          challengeSig,
+        }),
+      });
+      if (!resp.ok) throw new Error("Pairing failed");
+      const data = await resp.json();
+      if (data.success && data.deviceId) {
+        await invoke("save_lan_server", { serverUrl, deviceId: data.deviceId, pubkey });
+      }
+      return data;
+    },
     startSync: () => invoke<LanSyncReport>("start_lan_sync"),
     getSyncStatus: () =>
       invoke<{ isPaired: boolean; lastSyncedAt?: string }>("get_lan_sync_status"),

@@ -536,7 +536,7 @@ pub async fn get_lan_server_info(state: State<'_, AppState>) -> Result<serde_jso
     }))
 }
 
-fn get_local_ip() -> Option<String> {
+pub fn get_local_ip() -> Option<String> {
     // Connect to an external address without sending data to detect the local interface IP.
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
@@ -589,65 +589,31 @@ pub async fn discover_servers(
 }
 
 #[tauri::command]
-pub async fn initiate_pairing(server_url: String) -> Result<serde_json::Value> {
-    let resp = reqwest::Client::new()
-        .post(format!("{}/pairing/begin", server_url))
-        .send()
-        .await
-        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
-    Ok(resp)
-}
-
-#[tauri::command]
-pub async fn complete_pairing(
+pub async fn sign_pairing_challenge(
     state: State<'_, AppState>,
-    server_url: String,
-    device_name: String,
     challenge: String,
-) -> Result<serde_json::Value> {
-    // Load or generate device identity.
+) -> Result<(String, String)> {
     let (signing_key, pubkey_b64) = get_or_create_identity(&state.db).await?;
-
-    // Sign the challenge with the Ed25519 private key.
     use ed25519_dalek::Signer;
     let signature = signing_key.sign(challenge.as_bytes());
     let sig_b64 = B64.encode(signature.to_bytes());
+    Ok((pubkey_b64, sig_b64))
+}
 
-    let payload = serde_json::json!({
-        "deviceName": device_name,
-        "devicePubkey": pubkey_b64,
-        "challengeSig": sig_b64,
+#[tauri::command]
+pub async fn save_lan_server(
+    state: State<'_, AppState>,
+    server_url: String,
+    device_id: String,
+    pubkey: String,
+) -> Result<()> {
+    let server_info = serde_json::json!({
+        "serverUrl": server_url,
+        "deviceId": device_id,
+        "pubkey": pubkey,
     });
-
-    let resp: serde_json::Value = reqwest::Client::new()
-        .post(format!("{}/pairing/confirm", server_url))
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?
-        .json()
-        .await
-        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
-
-    if resp
-        .get("success")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
-    {
-        let device_id = resp["deviceId"].as_str().unwrap_or("").to_string();
-        // Persist the server connection info.
-        let server_info = serde_json::json!({
-            "serverUrl": server_url,
-            "deviceId": device_id,
-            "pubkey": pubkey_b64,
-        });
-        let _ = db::set_setting(&state.db, "lan_server", &server_info.to_string()).await;
-    }
-
-    Ok(resp)
+    let _ = db::set_setting(&state.db, "lan_server", &server_info.to_string()).await;
+    Ok(())
 }
 
 /// Load the device Ed25519 identity from the DB, or create it on first use.

@@ -155,7 +155,8 @@ pub fn run() {
                                 .map(|h| format!("Sravya-{}", h))
                                 .unwrap_or_else(|_| "Sravya Desktop".to_string());
 
-                            match lan::mdns::advertise(port, &server_name) {
+                            let ip = crate::commands::get_local_ip().unwrap_or_else(|| "".to_string());
+                            match lan::mdns::advertise(port, &server_name, &ip) {
                                 Ok(daemon) => {
                                     // Keep alive — if dropped, mDNS stops advertising.
                                     std::mem::forget(daemon);
@@ -229,8 +230,8 @@ pub fn run() {
                     commands::get_paired_devices,
                     commands::revoke_device,
                     commands::discover_servers,
-                    commands::initiate_pairing,
-                    commands::complete_pairing,
+                    commands::sign_pairing_challenge,
+                    commands::save_lan_server,
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,
@@ -267,8 +268,8 @@ pub fn run() {
                     commands::import_playlist_share,
                     // LAN sync (iOS is the client side)
                     commands::discover_servers,
-                    commands::initiate_pairing,
-                    commands::complete_pairing,
+                    commands::sign_pairing_challenge,
+                    commands::save_lan_server,
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ChangeEntry {
     pub seq: i64,
     pub entity_type: String,
@@ -10,6 +11,7 @@ pub struct ChangeEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChangesResponse {
     pub changes: Vec<ChangeEntry>,
     /// ISO8601 timestamp from the server; iOS stores this as the new last_sync_timestamp.
@@ -17,12 +19,14 @@ pub struct ChangesResponse {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PairingBeginResponse {
     pub challenge: String,
     pub server_name: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PairingConfirmRequest {
     pub device_name: String,
     pub device_pubkey: String,
@@ -30,6 +34,7 @@ pub struct PairingConfirmRequest {
 }
 
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PairedDevice {
     pub id: String,
     pub name: String,
@@ -39,6 +44,7 @@ pub struct PairedDevice {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LanServerInfo {
     pub address: String,
     pub port: u16,
@@ -46,6 +52,7 @@ pub struct LanServerInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct DiscoveredServer {
     pub name: String,
     pub host: String,
@@ -54,6 +61,7 @@ pub struct DiscoveredServer {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LanSyncStatus {
     pub phase: String,
     pub progress: f32,
@@ -62,6 +70,7 @@ pub struct LanSyncStatus {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SyncReport {
     pub added: u32,
     pub skipped: u32,

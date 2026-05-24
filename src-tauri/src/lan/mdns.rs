@@ -3,13 +3,14 @@ use std::time::Duration;
 
 use crate::lan::protocol::DiscoveredServer;
 
-pub fn advertise(port: u16, server_name: &str) -> anyhow::Result<ServiceDaemon> {
+pub fn advertise(port: u16, server_name: &str, ip: &str) -> anyhow::Result<ServiceDaemon> {
     let mdns = ServiceDaemon::new()?;
+    let host_name = format!("{}.local.", server_name.replace(" ", "-"));
     let service = ServiceInfo::new(
         "_sravya._tcp.local.",
         server_name,
-        "", // host — empty = auto-detect local hostname
-        "", // ip   — empty = auto-detect
+        &host_name,
+        ip,
         port,
         None,
     )?;
