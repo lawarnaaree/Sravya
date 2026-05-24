@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, Link, useLocation } from "react-router-dom";
 import { Library, Search, Settings, ListMusic, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ function NavItem({
       to={to}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-md py-2.5 pr-3 text-sm font-semibold transition-all duration-150",
+          "flex items-center gap-3 rounded-md py-2.5 pr-3 text-sm font-semibold",
           isActive
             ? "pl-[10px] text-[var(--text)]"
             : "pl-3 text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
@@ -33,7 +33,6 @@ function NavItem({
         isActive
           ? {
               background: "var(--surface-raised)",
-              borderLeft: "2px solid var(--gold)",
             }
           : { borderLeft: "2px solid transparent" }
       }
@@ -45,6 +44,9 @@ function NavItem({
 }
 
 export default function Sidebar() {
+  const location = useLocation();
+  const activePlaylistId = new URLSearchParams(location.search).get("id");
+
   const { data: playlists = [] } = useQuery({
     queryKey: ["playlists"],
     queryFn: () => api.playlists.list(),
@@ -101,20 +103,18 @@ export default function Sidebar() {
             </p>
           ) : (
             playlists.map((pl) => (
-              <NavLink
+              <Link
                 key={pl.id}
                 to={`/playlists?id=${pl.id}`}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
-                    isActive
-                      ? "bg-[var(--surface-raised)] text-[var(--text)]"
-                      : "text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
-                  )
-                }
+                className={cn(
+                  "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                  activePlaylistId === String(pl.id)
+                    ? "bg-[var(--surface-raised)] text-[var(--text)]"
+                    : "text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
+                )}
               >
                 <span className="truncate">{pl.name}</span>
-              </NavLink>
+              </Link>
             ))
           )}
         </div>

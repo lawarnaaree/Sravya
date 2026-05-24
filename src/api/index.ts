@@ -97,6 +97,41 @@ export interface DownloadSettings {
   downloadDir?: string;
 }
 
+// ── LAN sync types ────────────────────────────────────────────────────────
+
+export interface DiscoveredServer {
+  name: string;
+  host: string;
+  port: number;
+  address: string;
+}
+
+export interface PairedDevice {
+  id: string;
+  name: string;
+  platform: string;
+  pairedAt: string;
+  lastSeenAt?: string;
+}
+
+export interface LanSyncReport {
+  added: number;
+  skipped: number;
+  errors: number;
+}
+
+export interface LanServerInfo {
+  address: string;
+  port: number;
+  serverName: string;
+}
+
+export interface PairingInfo {
+  challenge: string;
+  pairingUri: string;
+  serverAddress: string;
+}
+
 // ── Phase 2 types ──────────────────────────────────────────────────────────
 
 export interface LyricsLine {
@@ -177,5 +212,26 @@ export const api = {
   eq: {
     getSettings: () => invoke<EqSettings>("get_eq_settings"),
     setSettings: (settings: EqSettings) => invoke<void>("set_eq_settings", { settings }),
+  },
+
+  lan: {
+    serverInfo: () => invoke<LanServerInfo>("get_lan_server_info"),
+    beginPairing: () => invoke<PairingInfo>("begin_pairing"),
+    getPairedDevices: () => invoke<PairedDevice[]>("get_paired_devices"),
+    revokeDevice: (deviceId: string) => invoke<void>("revoke_device", { deviceId }),
+    discoverServers: (timeoutSecs?: number) =>
+      invoke<DiscoveredServer[]>("discover_servers", { timeoutSecs: timeoutSecs ?? 5 }),
+    initiatePairing: (serverUrl: string) =>
+      invoke<{ challenge: string; serverName: string }>("initiate_pairing", { serverUrl }),
+    completePairing: (serverUrl: string, deviceName: string, challenge: string) =>
+      invoke<{ deviceId: string; success: boolean }>("complete_pairing", {
+        serverUrl,
+        deviceName,
+        challenge,
+      }),
+    startSync: () => invoke<LanSyncReport>("start_lan_sync"),
+    getSyncStatus: () =>
+      invoke<{ isPaired: boolean; lastSyncedAt?: string }>("get_lan_sync_status"),
+    importUrl: (url: string) => invoke<{ jobId: string }>("import_url_remote", { url }),
   },
 };

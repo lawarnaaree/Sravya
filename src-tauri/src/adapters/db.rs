@@ -173,6 +173,9 @@ pub async fn upsert_track(pool: &SqlitePool, t: &TrackInsert) -> Result<Uuid> {
     .execute(pool)
     .await?;
 
+    // Append to change_log so iOS sync clients can detect new tracks.
+    let _ = crate::lan::change_log::append_change(pool, "track", &id.to_string(), "upsert").await;
+
     Ok(id)
 }
 

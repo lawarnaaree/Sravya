@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, Trash2, FolderPlus, Loader2, Download, Moon, Sun } from "lucide-react";
+import {
+  FolderOpen,
+  Trash2,
+  FolderPlus,
+  Loader2,
+  Download,
+  Moon,
+  Sun,
+  QrCode,
+  Smartphone,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/api";
 import { useLibraryStore } from "@/state/library";
 import EqualizerPanel from "@/components/EqualizerPanel";
@@ -110,6 +121,130 @@ function DownloadSettings() {
           Requires <code>yt-dlp</code> and <code>ffmpeg</code> on PATH. Install:{" "}
           <code>winget install yt-dlp.yt-dlp</code> and <code>winget install Gyan.FFmpeg</code>
         </p>
+      </div>
+    </section>
+  );
+}
+
+function DevicePairingSection() {
+  const queryClient = useQueryClient();
+  const [pairingInfo, setPairingInfo] = useState<{
+    pairingUri: string;
+    serverAddress: string;
+  } | null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  const { data: devices = [] } = useQuery({
+    queryKey: ["paired-devices"],
+    queryFn: () => api.lan.getPairedDevices(),
+    refetchInterval: 5000,
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (deviceId: string) => api.lan.revokeDevice(deviceId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["paired-devices"] }),
+  });
+
+  const handleShowQr = async () => {
+    setGenerating(true);
+    try {
+      const info = await api.lan.beginPairing();
+      setPairingInfo({ pairingUri: info.pairingUri, serverAddress: info.serverAddress });
+    } catch (e) {
+      console.error("begin_pairing failed:", e);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <section className="mb-6">
+      <h2
+        className="mb-3 text-sm font-semibold tracking-wider uppercase"
+        style={{ color: "var(--text-subtle)", letterSpacing: "0.1em" }}
+      >
+        iPhone Sync
+      </h2>
+      <div
+        className="rounded-xl p-4"
+        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+      >
+        <p className="mb-3 text-sm" style={{ color: "var(--text-muted)" }}>
+          Pair your iPhone to sync your music library over WiFi. Open Sravya on iPhone → Sync tab →
+          Find Desktop, or scan the QR code below.
+        </p>
+
+        {pairingInfo ? (
+          <div className="flex flex-col items-center gap-3">
+            <div className="rounded-xl p-4" style={{ background: "#fff" }}>
+              <QRCodeSVG value={pairingInfo.pairingUri} size={180} />
+            </div>
+            <p className="text-center text-xs" style={{ color: "var(--text-subtle)" }}>
+              Scan with the Sravya iOS app to pair
+            </p>
+            <p className="font-mono text-xs" style={{ color: "var(--text-subtle)" }}>
+              {pairingInfo.serverAddress}
+            </p>
+            <button
+              onClick={() => setPairingInfo(null)}
+              className="text-xs underline"
+              style={{ color: "var(--text-subtle)" }}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleShowQr}
+            disabled={generating}
+            className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all disabled:opacity-50"
+            style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
+          >
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
+            Show Pairing QR Code
+          </button>
+        )}
+
+        {devices.length > 0 && (
+          <div className="mt-4">
+            <p
+              className="mb-2 text-xs font-semibold tracking-wider uppercase"
+              style={{ color: "var(--text-subtle)" }}
+            >
+              Paired Devices
+            </p>
+            <div className="flex flex-col gap-1">
+              {devices.map((device) => (
+                <div
+                  key={device.id}
+                  className="group flex items-center gap-3 rounded-lg px-3 py-2"
+                  style={{ background: "var(--surface-raised)" }}
+                >
+                  <Smartphone size={14} className="shrink-0" style={{ color: "var(--gold)" }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm" style={{ color: "var(--text)" }}>
+                      {device.name}
+                    </p>
+                    {device.lastSeenAt && (
+                      <p className="truncate text-xs" style={{ color: "var(--text-subtle)" }}>
+                        Last seen {new Date(device.lastSeenAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => revokeMutation.mutate(device.id)}
+                    disabled={revokeMutation.isPending}
+                    className="shrink-0 rounded p-1 text-xs opacity-0 transition-opacity group-hover:opacity-100"
+                    style={{ color: "#ef4444" }}
+                    aria-label="Revoke"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -430,6 +565,9 @@ export default function Settings() {
             <EqualizerPanel />
           </div>
         </section>
+
+        {/* Device Pairing */}
+        <DevicePairingSection />
 
         {/* Connected accounts */}
         <section>

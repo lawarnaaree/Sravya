@@ -1,5 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
@@ -79,6 +80,7 @@ pub async fn search(state: State<'_, AppState>, query: String) -> Result<Vec<Tra
     Ok(rows.iter().map(db::row_to_track_pub).collect())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn add_library_folder(
     state: State<'_, AppState>,
@@ -114,6 +116,7 @@ pub async fn add_library_folder(
     Ok(())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn remove_library_folder(state: State<'_, AppState>, path: String) -> Result<()> {
     db::remove_watched_folder(&state.db, &path).await
@@ -393,6 +396,7 @@ pub async fn set_eq_settings(state: State<'_, AppState>, settings: EqSettings) -
 
 // ── Import (Phase 3) ───────────────────────────────────────────────────────
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn import_url(
     app: AppHandle,
@@ -459,18 +463,21 @@ pub async fn import_url(
     Ok(ImportResult::Queued { job_id: job_id_ret })
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn get_download_queue(state: State<'_, AppState>) -> Result<Vec<DownloadJob>> {
     let q = state.download_queue.lock().unwrap();
     Ok(q.clone())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn get_download_settings(state: State<'_, AppState>) -> Result<serde_json::Value> {
     let dir = db::get_setting(&state.db, "download_dir").await?;
     Ok(serde_json::json!({ "downloadDir": dir }))
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn set_download_settings(state: State<'_, AppState>, download_dir: String) -> Result<()> {
     db::set_setting(&state.db, "download_dir", &download_dir).await?;
@@ -508,13 +515,277 @@ pub async fn import_playlist_share(
     ))
 }
 
+// ── LAN Sync ───────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_lan_server_info(state: State<'_, AppState>) -> Result<serde_json::Value> {
+    let port = state
+        .lan_server_port
+        .load(std::sync::atomic::Ordering::SeqCst);
+
+    let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+    let server_name = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .map(|h| format!("Sravya-{}", h))
+        .unwrap_or_else(|_| "Sravya Desktop".to_string());
+
+    Ok(serde_json::json!({
+        "address": format!("http://{}:{}", local_ip, port),
+        "port": port,
+        "serverName": server_name,
+    }))
+}
+
+fn get_local_ip() -> Option<String> {
+    // Connect to an external address without sending data to detect the local interface IP.
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    Some(socket.local_addr().ok()?.ip().to_string())
+}
+
+#[tauri::command]
+pub async fn begin_pairing(state: State<'_, AppState>) -> Result<serde_json::Value> {
+    let nonce: [u8; 32] = rand::random();
+    let challenge = B64.encode(nonce);
+    *state.lan_pairing_challenge.lock().await = Some(challenge.clone());
+
+    let port = state
+        .lan_server_port
+        .load(std::sync::atomic::Ordering::SeqCst);
+    let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+
+    // Encode as a pairing URI that the iOS app can scan as a QR code.
+    let pairing_uri = format!(
+        "sravya://pair?host={}&port={}&challenge={}",
+        local_ip,
+        port,
+        urlencoding::encode(&challenge)
+    );
+
+    Ok(serde_json::json!({
+        "challenge": challenge,
+        "pairingUri": pairing_uri,
+        "serverAddress": format!("http://{}:{}", local_ip, port),
+    }))
+}
+
+#[tauri::command]
+pub async fn get_paired_devices(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::lan::protocol::PairedDevice>> {
+    crate::lan::change_log::list_paired_devices(&state.db).await
+}
+
+#[tauri::command]
+pub async fn revoke_device(state: State<'_, AppState>, device_id: String) -> Result<()> {
+    crate::lan::change_log::revoke_device(&state.db, &device_id).await
+}
+
+#[tauri::command]
+pub async fn discover_servers(
+    timeout_secs: Option<u64>,
+) -> Result<Vec<crate::lan::protocol::DiscoveredServer>> {
+    Ok(crate::lan::mdns::browse_for_servers(timeout_secs.unwrap_or(5)).await)
+}
+
+#[tauri::command]
+pub async fn initiate_pairing(server_url: String) -> Result<serde_json::Value> {
+    let resp = reqwest::Client::new()
+        .post(format!("{}/pairing/begin", server_url))
+        .send()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    Ok(resp)
+}
+
+#[tauri::command]
+pub async fn complete_pairing(
+    state: State<'_, AppState>,
+    server_url: String,
+    device_name: String,
+    challenge: String,
+) -> Result<serde_json::Value> {
+    // Load or generate device identity.
+    let (signing_key, pubkey_b64) = get_or_create_identity(&state.db).await?;
+
+    // Sign the challenge with the Ed25519 private key.
+    use ed25519_dalek::Signer;
+    let signature = signing_key.sign(challenge.as_bytes());
+    let sig_b64 = B64.encode(signature.to_bytes());
+
+    let payload = serde_json::json!({
+        "deviceName": device_name,
+        "devicePubkey": pubkey_b64,
+        "challengeSig": sig_b64,
+    });
+
+    let resp: serde_json::Value = reqwest::Client::new()
+        .post(format!("{}/pairing/confirm", server_url))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?
+        .json()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+
+    if resp
+        .get("success")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
+        let device_id = resp["deviceId"].as_str().unwrap_or("").to_string();
+        // Persist the server connection info.
+        let server_info = serde_json::json!({
+            "serverUrl": server_url,
+            "deviceId": device_id,
+            "pubkey": pubkey_b64,
+        });
+        let _ = db::set_setting(&state.db, "lan_server", &server_info.to_string()).await;
+    }
+
+    Ok(resp)
+}
+
+/// Load the device Ed25519 identity from the DB, or create it on first use.
+async fn get_or_create_identity(
+    pool: &sqlx::SqlitePool,
+) -> Result<(ed25519_dalek::SigningKey, String)> {
+    if let Some(sk_b64) = db::get_setting(pool, "device_signing_key").await? {
+        let sk_bytes = B64
+            .decode(&sk_b64)
+            .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+        let sk_arr: [u8; 32] = sk_bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| crate::error::AppError::Other(anyhow::anyhow!("bad key length")))?;
+        let sk = ed25519_dalek::SigningKey::from_bytes(&sk_arr);
+        let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
+        return Ok((sk, pk_b64));
+    }
+
+    let sk = ed25519_dalek::SigningKey::generate(&mut rand::rngs::OsRng);
+    let pk_b64 = B64.encode(sk.verifying_key().as_bytes());
+    let sk_b64 = B64.encode(sk.to_bytes());
+    let _ = db::set_setting(pool, "device_signing_key", &sk_b64).await;
+    let _ = db::set_setting(pool, "device_pubkey", &pk_b64).await;
+    Ok((sk, pk_b64))
+}
+
+#[tauri::command]
+pub async fn start_lan_sync(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<crate::lan::protocol::SyncReport> {
+    let server_json = db::get_setting(&state.db, "lan_server")
+        .await?
+        .ok_or_else(|| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "No paired server. Complete pairing first."
+            ))
+        })?;
+
+    let server_info: serde_json::Value = serde_json::from_str(&server_json)
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+
+    let server_url = server_info["serverUrl"]
+        .as_str()
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("missing serverUrl")))?
+        .to_string();
+    let device_id = server_info["deviceId"]
+        .as_str()
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("missing deviceId")))?
+        .to_string();
+    let pubkey_b64 = server_info["pubkey"]
+        .as_str()
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("missing pubkey")))?
+        .to_string();
+
+    let hmac_key = crate::lan::auth::device_key(&pubkey_b64);
+
+    let client = crate::lan::sync_client::SyncClient {
+        server_url,
+        device_id,
+        hmac_key,
+        db: state.db.clone(),
+        data_dir: state.data_dir.clone(),
+    };
+
+    Ok(client.run_sync(&app).await)
+}
+
+#[tauri::command]
+pub async fn get_lan_sync_status(state: State<'_, AppState>) -> Result<serde_json::Value> {
+    let last_synced_at = db::get_setting(&state.db, "last_sync_timestamp").await?;
+    let paired = db::get_setting(&state.db, "lan_server").await?.is_some();
+    Ok(serde_json::json!({
+        "isPaired": paired,
+        "lastSyncedAt": last_synced_at,
+    }))
+}
+
+/// Ask the paired desktop to download a YouTube URL on the iPhone's behalf.
+/// The desktop runs yt-dlp; the resulting MP3 syncs back via the normal change_log flow.
+#[tauri::command]
+pub async fn import_url_remote(
+    state: State<'_, AppState>,
+    url: String,
+) -> Result<serde_json::Value> {
+    let server_json = db::get_setting(&state.db, "lan_server")
+        .await?
+        .ok_or_else(|| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "Not paired with a desktop. Open the Sync tab to pair first."
+            ))
+        })?;
+
+    let server_info: serde_json::Value = serde_json::from_str(&server_json)
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+
+    let server_url = server_info["serverUrl"]
+        .as_str()
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("missing serverUrl")))?;
+    let device_id = server_info["deviceId"]
+        .as_str()
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("missing deviceId")))?;
+    let pubkey_b64 = server_info["pubkey"]
+        .as_str()
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("missing pubkey")))?;
+
+    let hmac_key = crate::lan::auth::device_key(pubkey_b64);
+    let timestamp = chrono::Utc::now().timestamp() as u64;
+    let sig = crate::lan::auth::sign_request("POST", "/import/url", timestamp, &hmac_key);
+
+    let resp = reqwest::Client::new()
+        .post(format!("{}/import/url", server_url))
+        .header("x-sravya-device-id", device_id)
+        .header("x-sravya-timestamp", timestamp.to_string())
+        .header("x-sravya-signature", sig)
+        .json(&serde_json::json!({ "url": url }))
+        .send()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?
+        .error_for_status()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+
+    Ok(resp)
+}
+
 // ── Sync (Phase 5) ─────────────────────────────────────────────────────────
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn get_sync_status(_state: State<'_, AppState>) -> Result<Vec<SyncStatus>> {
     Ok(vec![])
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn connect_provider(_state: State<'_, AppState>, _provider: String) -> Result<String> {
     Err(crate::error::AppError::Other(anyhow::anyhow!(
@@ -522,11 +793,13 @@ pub async fn connect_provider(_state: State<'_, AppState>, _provider: String) ->
     )))
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn disconnect_provider(_state: State<'_, AppState>, _provider: String) -> Result<()> {
     Ok(())
 }
 
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn trigger_sync(_state: State<'_, AppState>, _provider: String) -> Result<()> {
     Ok(())

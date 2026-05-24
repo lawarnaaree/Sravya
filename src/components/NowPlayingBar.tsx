@@ -17,7 +17,11 @@ import { usePlayerStore } from "@/state/player";
 import { api } from "@/api";
 import { cn, formatDuration, coverUrl } from "@/lib/utils";
 
-export default function NowPlayingBar() {
+interface Props {
+  compact?: boolean;
+}
+
+export default function NowPlayingBar({ compact = false }: Props) {
   const {
     state,
     currentTrack,
@@ -46,6 +50,64 @@ export default function NowPlayingBar() {
   const VolumeIcon = muted || volume === 0 ? VolumeX : Volume2;
 
   const codecIsLossless = currentTrack?.codec === "FLAC" || currentTrack?.codec === "ALAC";
+
+  // Compact (mobile) mini-player — tap the bar to open full-screen player.
+  if (compact) {
+    return (
+      <div
+        className="flex shrink-0 cursor-pointer items-center gap-3 px-4"
+        style={{
+          height: 64,
+          background: "var(--surface)",
+          borderTop: "1px solid var(--border-subtle)",
+        }}
+        onClick={() => setFullScreen(true)}
+        role="button"
+        aria-label="Open player"
+      >
+        {currentTrack ? (
+          <>
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm"
+              style={{ background: "var(--surface-raised)" }}
+            >
+              <Music2 size={16} style={{ color: "var(--text-subtle)" }} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold" style={{ color: "var(--text)" }}>
+                {currentTrack.title}
+              </p>
+              <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                {currentTrack.artist}
+              </p>
+            </div>
+            <button
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-transform duration-75 active:scale-90"
+              style={{ background: "var(--text)", color: "var(--bg)" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlayPause();
+              }}
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? (
+                <Pause size={16} fill="currentColor" />
+              ) : (
+                <Play size={16} fill="currentColor" style={{ marginLeft: 1 }} />
+              )}
+            </button>
+          </>
+        ) : (
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm"
+            style={{ background: "var(--surface-raised)" }}
+          >
+            <Music2 size={16} style={{ color: "var(--text-subtle)" }} />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <footer

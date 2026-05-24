@@ -2,10 +2,15 @@ import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Download, X, Check, AlertTriangle, Loader2 } from "lucide-react";
 import { useDownloadQueueStore } from "@/state/downloadQueue";
+import { useLanSyncStore } from "@/state/lanSync";
+import { usePlatform } from "@/hooks/usePlatform";
 import { api } from "@/api";
 
 export default function DownloadToast() {
-  const { pendingUrl, toastMessage, jobs, setPendingUrl, clearToast } = useDownloadQueueStore();
+  const { pendingUrl, toastMessage, jobs, setPendingUrl, clearToast, setToastMessage } =
+    useDownloadQueueStore();
+  const platform = usePlatform();
+  const isPaired = useLanSyncStore((s) => s.isPaired);
 
   const activeJob = jobs.find((j) => j.state === "downloading" || j.state === "processing");
 
@@ -20,10 +25,26 @@ export default function DownloadToast() {
     if (!pendingUrl) return;
     const url = pendingUrl;
     setPendingUrl(null);
+
+    if (platform === "ios") {
+      if (!isPaired) {
+        setToastMessage("Pair with desktop in Sync tab to download YouTube links.");
+        return;
+      }
+      try {
+        await api.lan.importUrl(url);
+        setToastMessage("Downloading on desktop — will sync to your phone when ready.");
+      } catch (e) {
+        console.error("import_url_remote failed:", e);
+        setToastMessage(`Cannot send to desktop: ${e}`);
+      }
+      return;
+    }
+
     try {
       const result = await api.import.url(url);
       if (result.status === "refused") {
-        useDownloadQueueStore.getState().setToastMessage(`Cannot download: ${result.reason}`);
+        setToastMessage(`Cannot download: ${result.reason}`);
       }
     } catch (e) {
       console.error("import_url failed:", e);
@@ -31,6 +52,8 @@ export default function DownloadToast() {
   };
 
   const handleDismiss = () => setPendingUrl(null);
+
+  const buttonLabel = platform === "ios" ? "Send to desktop" : "Download as MP3";
 
   return (
     <div
@@ -176,7 +199,7 @@ export default function DownloadToast() {
                 alignSelf: "flex-end",
               }}
             >
-              Download as MP3
+              {buttonLabel}
             </button>
           </motion.div>
         )}

@@ -53,6 +53,9 @@ dependencies:
   '@tauri-apps/plugin-opener':
     specifier: ^2
     version: 2.5.4
+  '@tauri-apps/plugin-os':
+    specifier: ^2.3.2
+    version: 2.3.2
   clsx:
     specifier: ^2.1.1
     version: 2.1.1
@@ -62,6 +65,9 @@ dependencies:
   lucide-react:
     specifier: ^1.16.0
     version: 1.16.0(react@19.2.6)
+  qrcode.react:
+    specifier: ^4.2.0
+    version: 4.2.0(react@19.2.6)
   react:
     specifier: ^19.1.0
     version: 19.2.6
@@ -2051,6 +2057,12 @@ packages:
       '@tauri-apps/api': 2.11.0
     dev: false
 
+  /@tauri-apps/plugin-os@2.3.2:
+    resolution: {integrity: sha512-n+nXWeuSeF9wcEsSPmRnBEGrRgOy6jjkSU+UVCOV8YUGKb2erhDOxis7IqRXiRVHhY8XMKks00BJ0OAdkpf6+A==}
+    dependencies:
+      '@tauri-apps/api': 2.11.0
+    dev: false
+
   /@testing-library/dom@10.4.1:
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
     engines: {node: '>=18'}
@@ -3496,6 +3508,14 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
     dev: true
+
+  /qrcode.react@4.2.0(react@19.2.6):
+    resolution: {integrity: sha512-QpgqWi8rD9DsS9EP3z7BT+5lY5SFhsqGjpgW5DY/i3mK4M9DTBNz3ErMi8BWYEfI3L0d8GIbGmcdFAS1uIRGjA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    dependencies:
+      react: 19.2.6
+    dev: false
 
   /react-dom@19.2.6(react@19.2.6):
     resolution: {integrity: sha512-0prMI+hvBbPjsWnxDLxlCGyM8PN6UuWjEUCYmZhO67xIV9Xasa/r/vDnq+Xyq4Lo27g8QSbO5YzARu0D1Sps3g==}
