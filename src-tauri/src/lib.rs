@@ -155,9 +155,18 @@ pub fn run() {
                                 .map(|h| format!("Sravya-{}", h))
                                 .unwrap_or_else(|_| "Sravya Desktop".to_string());
 
-                            let ip = crate::commands::get_local_ip().unwrap_or_else(|| "".to_string());
+                            let ip = match crate::commands::get_local_ip() {
+                                Some(ip) if !ip.is_empty() && ip != "0.0.0.0" => ip,
+                                _ => {
+                                    tracing::warn!(
+                                        "Skipping mDNS advertise — no usable LAN IP detected"
+                                    );
+                                    break;
+                                }
+                            };
                             match lan::mdns::advertise(port, &server_name, &ip) {
                                 Ok(daemon) => {
+                                    tracing::info!("mDNS advertising Sravya on {ip}:{port}");
                                     // Keep alive — if dropped, mDNS stops advertising.
                                     std::mem::forget(daemon);
                                 }
@@ -232,6 +241,9 @@ pub fn run() {
                     commands::discover_servers,
                     commands::sign_pairing_challenge,
                     commands::save_lan_server,
+                    commands::pairing_begin_remote,
+                    commands::pairing_confirm_remote,
+                    commands::trigger_local_network_prompt,
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,
@@ -270,6 +282,9 @@ pub fn run() {
                     commands::discover_servers,
                     commands::sign_pairing_challenge,
                     commands::save_lan_server,
+                    commands::pairing_begin_remote,
+                    commands::pairing_confirm_remote,
+                    commands::trigger_local_network_prompt,
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,

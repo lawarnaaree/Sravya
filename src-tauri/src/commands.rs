@@ -616,6 +616,73 @@ pub async fn save_lan_server(
     Ok(())
 }
 
+// HTTP calls from the iOS WebView are blocked by the Tauri CSP. Routing pairing through
+// reqwest (which runs outside the WebView) sidesteps CSP and preflight entirely.
+#[tauri::command]
+pub async fn pairing_begin_remote(server_url: String) -> Result<serde_json::Value> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    let resp = client
+        .post(format!("{}/pairing/begin", server_url))
+        .send()
+        .await
+        .map_err(|e| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "Cannot reach desktop at {server_url}: {e}"
+            ))
+        })?
+        .error_for_status()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))
+}
+
+#[tauri::command]
+pub async fn pairing_confirm_remote(
+    server_url: String,
+    device_name: String,
+    device_pubkey: String,
+    challenge_sig: String,
+) -> Result<serde_json::Value> {
+    let body = serde_json::json!({
+        "deviceName": device_name,
+        "devicePubkey": device_pubkey,
+        "challengeSig": challenge_sig,
+    });
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    let resp = client
+        .post(format!("{}/pairing/confirm", server_url))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!("Pairing request failed: {e}")))?
+        .error_for_status()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))
+}
+
+// iOS shows the Local Network permission prompt the first time the app emits any LAN traffic.
+// Opening a UDP socket to a link-local multicast address triggers the prompt without needing
+// to make an HTTP request that the CSP would block.
+#[tauri::command]
+pub async fn trigger_local_network_prompt() -> Result<()> {
+    let _ = tokio::task::spawn_blocking(|| {
+        if let Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            let _ = sock.send_to(b"sravya-prompt", "224.0.0.251:5353");
+        }
+    })
+    .await;
+    Ok(())
+}
+
 /// Load the device Ed25519 identity from the DB, or create it on first use.
 async fn get_or_create_identity(
     pool: &sqlx::SqlitePool,

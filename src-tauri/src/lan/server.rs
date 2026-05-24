@@ -18,6 +18,11 @@ use serde_json::json;
 use sqlx::SqlitePool;
 use tauri::AppHandle;
 use tokio::sync::{broadcast, Mutex};
+use tower_http::cors::{Any, CorsLayer};
+
+/// Stable port for the LAN server. Pinning means the Windows Firewall "Allow" rule
+/// the user grants on first launch stays valid forever (random ports would invalidate it).
+pub const SRAVYA_LAN_PORT: u16 = 41892;
 
 use crate::{
     adapters::db,
@@ -65,7 +70,15 @@ pub async fn start(
     });
 
     let app = build_router(state);
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await?;
+    let listener = match tokio::net::TcpListener::bind(("0.0.0.0", SRAVYA_LAN_PORT)).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::warn!(
+                "Could not bind LAN port {SRAVYA_LAN_PORT} ({e}); falling back to ephemeral port"
+            );
+            tokio::net::TcpListener::bind("0.0.0.0:0").await?
+        }
+    };
     let port = listener.local_addr()?.port();
     port_sink.store(port, std::sync::atomic::Ordering::SeqCst);
     tracing::info!("LAN server listening on :{}", port);
@@ -75,6 +88,11 @@ pub async fn start(
 }
 
 fn build_router(state: Shared) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     Router::new()
         .route("/health", get(health))
         .route("/info", get(server_info))
@@ -91,6 +109,7 @@ fn build_router(state: Shared) -> Router {
         .route("/ws/events", get(ws_handler))
         .route("/import/url", post(import_url_handler))
         .with_state(state)
+        .layer(cors)
 }
 
 // ── Authentication ─────────────────────────────────────────────────────────
