@@ -84,6 +84,7 @@ keyring = "3"
 security-framework = "2"
 objc2 = "0.5"
 objc2-av-foundation = { version = "0.3", features = ["AVAudioSession"] }
+tauri-plugin-barcode-scanner = "2"
 
 [dev-dependencies]
 wiremock = "0.6"

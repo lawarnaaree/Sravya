@@ -51,5 +51,7 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Sravya uses the camera to scan the pairing QR code shown on your desktop.</string>
 </dict>
 </plist>

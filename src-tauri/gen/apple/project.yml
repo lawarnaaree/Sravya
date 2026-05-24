@@ -62,6 +62,7 @@ targets:
           - _sravya._tcp
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        NSCameraUsageDescription: "Sravya uses the camera to scan the pairing QR code shown on your desktop."
     entitlements:
       path: sravya_iOS/sravya_iOS.entitlements
     scheme:

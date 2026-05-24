@@ -1,13 +1,33 @@
 import { useState } from "react";
-import { Wifi, WifiOff, RefreshCw, CheckCircle, Loader2, Smartphone } from "lucide-react";
+import { Wifi, WifiOff, RefreshCw, CheckCircle, Loader2, Smartphone, QrCode } from "lucide-react";
+import {
+  scan,
+  Format,
+  checkPermissions,
+  requestPermissions,
+} from "@tauri-apps/plugin-barcode-scanner";
 import { api } from "@/api";
 import { useLanSyncStore, type DiscoveredServer } from "@/state/lanSync";
 import type { LanSyncReport } from "@/api";
+import { usePlatform } from "@/hooks/usePlatform";
+
+function parsePairingUri(uri: string): { serverAddress: string; challenge: string } | null {
+  if (!uri.startsWith("sravya://pair")) return null;
+  // URL parser chokes on the custom scheme + missing slashes, so swap to http:// for parsing.
+  const u = new URL(uri.replace(/^sravya:\/\/pair/, "http://pair"));
+  const host = u.searchParams.get("host");
+  const port = u.searchParams.get("port");
+  const challenge = u.searchParams.get("challenge");
+  if (!host || !port || !challenge) return null;
+  return { serverAddress: `http://${host}:${port}`, challenge };
+}
 
 function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
+  const platform = usePlatform();
   const [searching, setSearching] = useState(false);
   const { discoveredServers, setDiscoveredServers } = useLanSyncStore();
   const [pairing, setPairing] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleDiscover = async () => {
@@ -42,6 +62,47 @@ function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
     }
   };
 
+  const handleScanQr = async () => {
+    setError(null);
+    setScanning(true);
+    try {
+      let perm = await checkPermissions();
+      if (perm !== "granted" && perm !== "denied") {
+        perm = await requestPermissions();
+      }
+      if (perm !== "granted") {
+        setError("Camera permission denied. Enable it in iOS Settings → Sravya.");
+        return;
+      }
+
+      const result = await scan({ windowed: false, formats: [Format.QRCode] });
+      const parsed = parsePairingUri(result.content);
+      if (!parsed) {
+        setError("That QR code isn't a Sravya pairing code.");
+        return;
+      }
+
+      setPairing(parsed.serverAddress);
+      const completion = await api.lan.completePairing(
+        parsed.serverAddress,
+        "My iPhone",
+        parsed.challenge
+      );
+      if (completion.success) {
+        onPaired();
+      } else {
+        setError("Pairing failed. Generate a fresh QR code on the desktop and try again.");
+      }
+    } catch (e) {
+      // The plugin throws when the user cancels — don't surface that as an error.
+      const msg = String(e);
+      if (!/cancel/i.test(msg)) setError(msg);
+    } finally {
+      setPairing(null);
+      setScanning(false);
+    }
+  };
+
   return (
     <div>
       <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -50,8 +111,8 @@ function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
 
       <button
         onClick={handleDiscover}
-        disabled={searching}
-        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
+        disabled={searching || scanning}
+        className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
         style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
       >
         {searching ? (
@@ -66,6 +127,31 @@ function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
           </>
         )}
       </button>
+
+      {platform === "ios" && (
+        <button
+          onClick={handleScanQr}
+          disabled={searching || scanning || pairing !== null}
+          className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
+          style={{
+            background: "var(--surface-raised)",
+            color: "var(--text)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          {scanning ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Opening camera…
+            </>
+          ) : (
+            <>
+              <QrCode size={16} />
+              Scan QR from Desktop
+            </>
+          )}
+        </button>
+      )}
 
       {error && (
         <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>

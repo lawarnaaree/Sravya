@@ -46,6 +46,12 @@ pub fn run() {
             .plugin(tauri_plugin_shell::init());
     }
 
+    // iOS-only plugins.
+    #[cfg(target_os = "ios")]
+    {
+        builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+    }
+
     builder
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_os::init())
