@@ -523,7 +523,11 @@ pub async fn get_lan_server_info(state: State<'_, AppState>) -> Result<serde_jso
         .lan_server_port
         .load(std::sync::atomic::Ordering::SeqCst);
 
-    let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+    let local_ip = get_local_ip().ok_or_else(|| {
+        crate::error::AppError::Other(anyhow::anyhow!(
+            "No usable local IP found. Check network connection."
+        ))
+    })?;
     let server_name = std::env::var("COMPUTERNAME")
         .or_else(|_| std::env::var("HOSTNAME"))
         .map(|h| format!("Sravya-{}", h))
@@ -537,15 +541,35 @@ pub async fn get_lan_server_info(state: State<'_, AppState>) -> Result<serde_jso
 }
 
 pub fn get_local_ip() -> Option<String> {
-    // Connect to an external address without sending data to detect the local interface IP.
-    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("8.8.8.8:80").ok()?;
-    let ip = socket.local_addr().ok()?.ip().to_string();
-    // Reject loopback and link-local (VPN tunnel / no real network)
-    if ip.starts_with("127.") || ip.starts_with("169.254") {
-        return None;
+    // 1. Connect to an external address without sending data to detect the local interface IP (UDP trick).
+    if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(local_addr) = socket.local_addr() {
+                let ip = local_addr.ip().to_string();
+                if !ip.starts_with("127.") && !ip.starts_with("169.254") {
+                    return Some(ip);
+                }
+            }
+        }
     }
-    Some(ip)
+
+    // 2. Fallback: Enumerate network interfaces directly
+    if let Ok(interfaces) = if_addrs::get_if_addrs() {
+        for iface in interfaces {
+            if iface.is_loopback() {
+                continue;
+            }
+            if let if_addrs::IfAddr::V4(v4_addr) = iface.addr {
+                let ip = v4_addr.ip;
+                // Filter out loopback and link-local (169.254.x.x)
+                if !ip.is_loopback() && !(ip.octets()[0] == 169 && ip.octets()[1] == 254) {
+                    return Some(ip.to_string());
+                }
+            }
+        }
+    }
+
+    None
 }
 
 #[tauri::command]

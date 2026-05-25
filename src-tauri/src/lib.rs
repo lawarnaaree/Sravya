@@ -318,7 +318,19 @@ pub fn run() {
 
 #[cfg(windows)]
 fn ensure_lan_firewall_rule(port: u16) {
+    // 1. Try to delete the rule first to avoid duplicates
     let _ = std::process::Command::new("netsh")
+        .args([
+            "advfirewall",
+            "firewall",
+            "delete",
+            "rule",
+            "name=Sravya LAN Sync",
+        ])
+        .output();
+
+    // 2. Add the rule with the current port
+    let add_res = std::process::Command::new("netsh")
         .args([
             "advfirewall",
             "firewall",
@@ -331,4 +343,27 @@ fn ensure_lan_firewall_rule(port: u16) {
             &format!("localport={}", port),
         ])
         .output();
+
+    match add_res {
+        Ok(output) if output.status.success() => {
+            tracing::info!(
+                "Successfully ensured Windows Firewall rule for Sravya LAN Sync on port {port}"
+            );
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::warn!(
+                "Could not register Windows Firewall rule automatically (status: {}). Error: {}. NOTE: If LAN sync fails, please run Sravya as Administrator once or manually allow port {} in Windows Defender Firewall.",
+                output.status,
+                stderr.trim(),
+                port
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Failed to invoke netsh to configure firewall: {e}. If LAN sync fails, please manually allow port {} in Windows Defender Firewall.",
+                port
+            );
+        }
+    }
 }
