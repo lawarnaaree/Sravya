@@ -1,5 +1,15 @@
 import { useState } from "react";
-import { Wifi, WifiOff, RefreshCw, CheckCircle, Loader2, Smartphone, QrCode } from "lucide-react";
+import {
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  CheckCircle,
+  Loader2,
+  Smartphone,
+  QrCode,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import {
   scan,
   Format,
@@ -20,6 +30,44 @@ function parsePairingUri(uri: string): { serverAddress: string; challenge: strin
   const challenge = u.searchParams.get("challenge");
   if (!host || !port || !challenge) return null;
   return { serverAddress: `http://${host}:${port}`, challenge };
+}
+
+function HotspotInstructions() {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="mt-4 rounded-xl border" style={{ borderColor: "var(--border)" }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+        style={{ color: "var(--text)" }}
+      >
+        <span className="flex items-center gap-2">
+          <Smartphone size={16} style={{ color: "var(--gold)" }} />
+          Direct Connection (No Router)
+        </span>
+        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="mb-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+            No shared WiFi needed. Works like SHAREit — iPhone becomes the router.
+          </p>
+          <ol className="flex list-decimal flex-col gap-2 pl-4">
+            <li>
+              On iPhone: <strong>Settings → Personal Hotspot → Allow Others to Join ✓</strong>
+            </li>
+            <li>
+              On Windows: <strong>WiFi → connect to &quot;[Your Name]&apos;s iPhone&quot;</strong>
+            </li>
+            <li>
+              Tap <strong>&quot;Find Desktop&quot;</strong> above
+            </li>
+          </ol>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
@@ -154,9 +202,17 @@ function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
       )}
 
       {error && (
-        <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>
-          {error}
-        </p>
+        <div className="mb-3">
+          <p className="text-sm" style={{ color: "#ef4444" }}>
+            {error}
+          </p>
+          {(error.includes("Cannot reach") || error.includes("request failed")) && (
+            <p className="mt-1 text-xs" style={{ color: "var(--text-subtle)" }}>
+              Check that Windows Firewall allows Sravya (port 41892 TCP inbound), or use Hotspot
+              Mode below.
+            </p>
+          )}
+        </div>
       )}
 
       {discoveredServers.length > 0 && (
@@ -197,6 +253,8 @@ function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
           ))}
         </div>
       )}
+
+      <HotspotInstructions />
     </div>
   );
 }

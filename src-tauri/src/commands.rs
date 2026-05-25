@@ -540,7 +540,12 @@ pub fn get_local_ip() -> Option<String> {
     // Connect to an external address without sending data to detect the local interface IP.
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
-    Some(socket.local_addr().ok()?.ip().to_string())
+    let ip = socket.local_addr().ok()?.ip().to_string();
+    // Reject loopback and link-local (VPN tunnel / no real network)
+    if ip.starts_with("127.") || ip.starts_with("169.254") {
+        return None;
+    }
+    Some(ip)
 }
 
 #[tauri::command]
@@ -552,7 +557,11 @@ pub async fn begin_pairing(state: State<'_, AppState>) -> Result<serde_json::Val
     let port = state
         .lan_server_port
         .load(std::sync::atomic::Ordering::SeqCst);
-    let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+    let local_ip = get_local_ip().ok_or_else(|| {
+        crate::error::AppError::Other(anyhow::anyhow!(
+            "No usable local IP found. Check network connection."
+        ))
+    })?;
 
     // Encode as a pairing URI that the iOS app can scan as a QR code.
     let pairing_uri = format!(

@@ -253,6 +253,7 @@ function DevicePairingSection() {
 export default function Settings() {
   const queryClient = useQueryClient();
   const [addingFolder, setAddingFolder] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const { theme, setTheme } = useTheme();
 
   const { data: stats } = useQuery({
@@ -278,13 +279,14 @@ export default function Settings() {
 
   const handleAddFolder = async () => {
     setAddingFolder(true);
+    setFolderError(null);
     try {
       const selected = await open({ directory: true, multiple: false });
       if (typeof selected === "string" && selected) {
         await addFolderMutation.mutateAsync(selected);
       }
     } catch (e) {
-      console.error("Failed to add folder:", e);
+      setFolderError(`Failed to add folder: ${String(e)}`);
     } finally {
       setAddingFolder(false);
     }
@@ -541,6 +543,11 @@ export default function Settings() {
               )}
               Add Folder
             </button>
+            {folderError && (
+              <p className="mt-2 text-xs" style={{ color: "#ef4444" }}>
+                {folderError}
+              </p>
+            )}
           </div>
         </section>
 

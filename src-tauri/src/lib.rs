@@ -69,6 +69,24 @@ pub fn run() {
             let db = tauri::async_runtime::block_on(adapters::db::connect(&db_path))
                 .expect("failed to connect to SQLite database");
 
+            {
+                let db_clone = db.clone();
+                let covers_clone = covers_dir.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Ok(folders) = adapters::db::get_watched_folders(&db_clone).await {
+                        for folder in folders {
+                            let _ = adapters::fs_scan::scan_folder(
+                                &db_clone,
+                                &folder,
+                                &covers_clone,
+                                |_| {},
+                            )
+                            .await;
+                        }
+                    }
+                });
+            }
+
             let audio = Arc::new(AudioEngine::new());
 
             // Restore persisted EQ settings.
@@ -150,6 +168,9 @@ pub fn run() {
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         let port = port_poll.load(Ordering::SeqCst);
                         if port != 0 {
+                            #[cfg(windows)]
+                            ensure_lan_firewall_rule(port);
+
                             let server_name = std::env::var("COMPUTERNAME")
                                 .or_else(|_| std::env::var("HOSTNAME"))
                                 .map(|h| format!("Sravya-{}", h))
@@ -293,4 +314,21 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Sravya");
+}
+
+#[cfg(windows)]
+fn ensure_lan_firewall_rule(port: u16) {
+    let _ = std::process::Command::new("netsh")
+        .args([
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=Sravya LAN Sync",
+            "dir=in",
+            "action=allow",
+            "protocol=tcp",
+            &format!("localport={}", port),
+        ])
+        .output();
 }
