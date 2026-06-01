@@ -1,40 +1,39 @@
-import { useEffect } from "react";
-import { listen } from "@tauri-apps/api/event";
-import { useQueryClient } from "@tanstack/react-query";
-import { useDownloadQueueStore } from "@/state/downloadQueue";
-import type { DownloadJob } from "@/api";
+import { useEffect } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { useQueryClient } from '@tanstack/react-query'
+import { useDownloadQueueStore } from '@/state/downloadQueue'
+
+interface ProgressPayload {
+  track_id: string
+  percent: number
+  speed_kbps: number
+}
 
 export function useDownloadEvents() {
-  const upsertJob = useDownloadQueueStore((s) => s.upsertJob);
-  const setToastMessage = useDownloadQueueStore((s) => s.setToastMessage);
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
+  const { upsertJob, setToastMessage } = useDownloadQueueStore()
 
   useEffect(() => {
-    const p1 = listen<DownloadJob>("download-progress", ({ payload }) => {
-      upsertJob(payload);
-    });
+    const unlisteners = [
+      listen<ProgressPayload>('download-progress', ({ payload }) => {
+        upsertJob({ trackId: payload.track_id, status: 'downloading', progress: payload.percent })
+      }),
 
-    const p2 = listen<DownloadJob>("download-complete", ({ payload }) => {
-      upsertJob(payload);
-      setToastMessage(`"${payload.title ?? "Track"}" added to library`);
-      queryClient.invalidateQueries({ queryKey: ["tracks"] });
-      queryClient.invalidateQueries({ queryKey: ["albums"] });
-      queryClient.invalidateQueries({ queryKey: ["artists"] });
-      queryClient.invalidateQueries({ queryKey: ["stats"] });
-    });
+      listen<{ track_id: string }>('download-complete', ({ payload }) => {
+        upsertJob({ trackId: payload.track_id, status: 'complete', progress: 100 })
+        queryClient.invalidateQueries({ queryKey: ['tracks'] })
+        setToastMessage('Download complete')
+        setTimeout(() => useDownloadQueueStore.getState().clearToast(), 3000)
+      }),
 
-    const p3 = listen<DownloadJob>("download-failed", ({ payload }) => {
-      upsertJob(payload);
-      const state = payload.state;
-      const err =
-        typeof state === "object" && "failed" in state ? state.failed.error : "Unknown error";
-      setToastMessage(`Download failed: ${err}`);
-    });
+      listen<{ track_id: string; error: string }>('download-failed', ({ payload }) => {
+        upsertJob({ trackId: payload.track_id, status: 'failed', error: payload.error })
+        setToastMessage(`Download failed: ${payload.error}`)
+      }),
+    ]
 
     return () => {
-      p1.then((f) => f());
-      p2.then((f) => f());
-      p3.then((f) => f());
-    };
-  }, [upsertJob, setToastMessage, queryClient]);
+      unlisteners.forEach(p => p.then(fn => fn()))
+    }
+  }, [queryClient, upsertJob, setToastMessage])
 }

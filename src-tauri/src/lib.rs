@@ -1,382 +1,96 @@
 mod adapters;
-pub mod cloud;
+mod cloud;
 mod commands;
 mod core;
 mod crypto;
 mod error;
-pub mod events;
-pub mod lan;
+mod events;
+mod lan;
 
-use std::{
-    path::PathBuf,
-    sync::{
-        atomic::{AtomicU16, Ordering},
-        Arc, Mutex,
-    },
-};
-
-use adapters::audio::AudioEngine;
-use core::importer::DownloadJob;
-use sqlx::SqlitePool;
+use adapters::db;
+use core::player::Player;
+use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::Manager;
-use tokio::sync::{broadcast, Mutex as AsyncMutex};
 
 pub struct AppState {
-    pub db: SqlitePool,
-    pub audio: Arc<AudioEngine>,
+    pub pool: sqlx::SqlitePool,
+    pub player: Arc<Player>,
+    pub tracks_dir: PathBuf,
     pub covers_dir: PathBuf,
-    pub data_dir: PathBuf,
-    pub download_queue: Arc<Mutex<Vec<DownloadJob>>>,
-    // LAN sync
-    pub lan_server_port: Arc<AtomicU16>,
-    pub lan_pairing_challenge: Arc<AsyncMutex<Option<String>>>,
-    pub lan_ws_tx: broadcast::Sender<serde_json::Value>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default();
+    tracing_subscriber::fmt::init();
 
-    // Desktop-only plugins.
-    #[cfg(desktop)]
-    {
-        builder = builder
-            .plugin(tauri_plugin_opener::init())
-            .plugin(tauri_plugin_dialog::init())
-            .plugin(tauri_plugin_fs::init())
-            .plugin(tauri_plugin_shell::init());
-    }
-
-    // iOS-only plugins.
-    #[cfg(target_os = "ios")]
-    {
-        builder = builder.plugin(tauri_plugin_barcode_scanner::init());
-    }
-
-    builder
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_os::init())
         .setup(|app| {
-            let data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("could not resolve app data dir");
-            std::fs::create_dir_all(&data_dir)?;
+            let data_dir = dirs::data_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join("Sravya");
 
+            let db_path = data_dir.join("sravya.db");
+            let tracks_dir = data_dir.join("tracks");
             let covers_dir = data_dir.join("covers");
+
+            std::fs::create_dir_all(&tracks_dir)?;
             std::fs::create_dir_all(&covers_dir)?;
 
-            let db_path = data_dir.join("library.db");
-            let db = tauri::async_runtime::block_on(adapters::db::connect(&db_path))
-                .expect("failed to connect to SQLite database");
+            let player = Arc::new(Player::new().expect("Audio init failed"));
 
+            let pool = tauri::async_runtime::block_on(db::init_pool(&db_path))
+                .expect("DB open failed");
+
+            #[cfg(not(target_os = "ios"))]
             {
-                let db_clone = db.clone();
-                let covers_clone = covers_dir.clone();
+                let lan_state = lan::server::LanState {
+                    pool: Arc::new(pool.clone()),
+                    tracks_dir: Arc::new(tracks_dir.clone()),
+                    hmac_key: Arc::new(b"sravya-lan-key".to_vec()),
+                };
                 tauri::async_runtime::spawn(async move {
-                    if let Ok(folders) = adapters::db::get_watched_folders(&db_clone).await {
-                        for folder in folders {
-                            let _ = adapters::fs_scan::scan_folder(
-                                &db_clone,
-                                &folder,
-                                &covers_clone,
-                                |_| {},
-                            )
-                            .await;
-                        }
-                    }
+                    let _ = lan::server::start_lan_server(lan_state).await;
                 });
             }
 
-            let audio = Arc::new(AudioEngine::new());
-
-            // Restore persisted EQ settings.
-            if let Ok(Some(json)) =
-                tauri::async_runtime::block_on(adapters::db::get_setting(&db, "eq_settings"))
-            {
-                if let Ok(settings) = serde_json::from_str::<core::playback::EqSettings>(&json) {
-                    let mut cfg = audio.eq_config.write().unwrap();
-                    cfg.enabled = settings.enabled;
-                    cfg.preamp_db = settings.preamp_db;
-                    for (i, band) in settings.bands.iter().enumerate().take(10) {
-                        cfg.bands[i] = band.gain_db;
-                    }
-                }
-            }
-
-            // On mobile, auto-scan the Documents directory where users can drop files
-            #[cfg(mobile)]
-            {
-                if let Ok(doc_dir) = app.path().document_dir() {
-                    let path_str = doc_dir.to_string_lossy().into_owned();
-                    let db_clone = db.clone();
-                    let covers_clone = covers_dir.clone();
-                    tauri::async_runtime::spawn(async move {
-                        let _ = adapters::db::add_watched_folder(&db_clone, &path_str).await;
-                        let _ = adapters::fs_scan::scan_folder(
-                            &db_clone,
-                            &path_str,
-                            &covers_clone,
-                            |_| {},
-                        )
-                        .await;
-                    });
-                }
-            }
-
-            let (lan_ws_tx, _) = broadcast::channel::<serde_json::Value>(64);
-            let lan_server_port = Arc::new(AtomicU16::new(0));
-            let lan_pairing_challenge = Arc::new(AsyncMutex::new(None::<String>));
-
-            // Spawn the LAN HTTP server on the tokio runtime Tauri already owns.
-            // Desktop is the hub-and-spoke server; iOS is a client only.
-            #[cfg(desktop)]
-            {
-                let db_lan = db.clone();
-                let data_dir_lan = data_dir.clone();
-                let covers_dir_lan = covers_dir.clone();
-                let port_sink = Arc::clone(&lan_server_port);
-                let challenge_lan = Arc::clone(&lan_pairing_challenge);
-                let ws_tx_lan = lan_ws_tx.clone();
-                let app_handle_lan = app.handle().clone();
-
-                tauri::async_runtime::spawn(async move {
-                    let server_name = std::env::var("COMPUTERNAME")
-                        .or_else(|_| std::env::var("HOSTNAME"))
-                        .map(|h| format!("Sravya-{}", h))
-                        .unwrap_or_else(|_| "Sravya Desktop".to_string());
-
-                    if let Err(e) = lan::server::start(
-                        db_lan,
-                        data_dir_lan,
-                        covers_dir_lan,
-                        port_sink,
-                        challenge_lan,
-                        server_name.clone(),
-                        ws_tx_lan.clone(),
-                        app_handle_lan,
-                    )
-                    .await
-                    {
-                        tracing::error!("LAN server error: {e}");
-                    }
-                });
-
-                // Start mDNS advertisement after the port is known (poll briefly).
-                let port_poll = Arc::clone(&lan_server_port);
-                tauri::async_runtime::spawn(async move {
-                    for _ in 0..50 {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                        let port = port_poll.load(Ordering::SeqCst);
-                        if port != 0 {
-                            #[cfg(windows)]
-                            ensure_lan_firewall_rule(port);
-
-                            let server_name = std::env::var("COMPUTERNAME")
-                                .or_else(|_| std::env::var("HOSTNAME"))
-                                .map(|h| format!("Sravya-{}", h))
-                                .unwrap_or_else(|_| "Sravya Desktop".to_string());
-
-                            let ip = match crate::commands::get_local_ip() {
-                                Some(ip) if !ip.is_empty() && ip != "0.0.0.0" => ip,
-                                _ => {
-                                    tracing::warn!(
-                                        "Skipping mDNS advertise — no usable LAN IP detected"
-                                    );
-                                    break;
-                                }
-                            };
-                            match lan::mdns::advertise(port, &server_name, &ip) {
-                                Ok(daemon) => {
-                                    tracing::info!("mDNS advertising Sravya on {ip}:{port}");
-                                    // Keep alive — if dropped, mDNS stops advertising.
-                                    std::mem::forget(daemon);
-                                }
-                                Err(e) => tracing::warn!("mDNS advertise failed: {e}"),
-                            }
-                            break;
-                        }
-                    }
-                });
-            }
-
-            app.manage(AppState {
-                db,
-                audio,
-                covers_dir,
-                data_dir,
-                download_queue: Arc::new(Mutex::new(Vec::new())),
-                lan_server_port,
-                lan_pairing_challenge,
-                lan_ws_tx,
-            });
-
+            app.manage(AppState { pool, player, tracks_dir, covers_dir });
             Ok(())
         })
-        .invoke_handler({
-            #[cfg(desktop)]
-            {
-                tauri::generate_handler![
-                    // library
-                    commands::get_library_stats,
-                    commands::get_tracks,
-                    commands::get_albums,
-                    commands::get_artists,
-                    commands::get_playlist_tracks,
-                    commands::search,
-                    commands::add_library_folder,
-                    commands::remove_library_folder,
-                    // playback
-                    commands::get_playback_status,
-                    commands::send_player_command,
-                    commands::play_track,
-                    // playlists
-                    commands::get_playlists,
-                    commands::create_playlist,
-                    commands::update_playlist,
-                    commands::delete_playlist,
-                    commands::add_to_playlist,
-                    commands::remove_from_playlist,
-                    // Phase 2: lyrics + EQ
-                    commands::get_lyrics,
-                    commands::get_eq_settings,
-                    commands::set_eq_settings,
-                    // import — desktop only (yt-dlp)
-                    commands::import_url,
-                    commands::get_download_queue,
-                    commands::get_download_settings,
-                    commands::set_download_settings,
-                    // sharing — Phase 4
-                    commands::get_identity,
-                    commands::export_playlist_share,
-                    commands::import_playlist_share,
-                    // provider sync — Phase 5
-                    commands::get_sync_status,
-                    commands::connect_provider,
-                    commands::disconnect_provider,
-                    commands::trigger_sync,
-                    // LAN sync
-                    commands::get_lan_server_info,
-                    commands::begin_pairing,
-                    commands::get_paired_devices,
-                    commands::revoke_device,
-                    commands::discover_servers,
-                    commands::sign_pairing_challenge,
-                    commands::save_lan_server,
-                    commands::pairing_begin_remote,
-                    commands::pairing_confirm_remote,
-                    commands::trigger_local_network_prompt,
-                    commands::start_lan_sync,
-                    commands::get_lan_sync_status,
-                    commands::import_url_remote,
-                    // cloud sync — desktop
-                    commands::get_cloud_settings,
-                    commands::set_cloud_settings,
-                    commands::get_cloud_sync_status,
-                    commands::upload_track_to_cloud,
-                    commands::sync_all_to_cloud,
-                    commands::pull_from_cloud,
-                ]
-            }
-            #[cfg(mobile)]
-            {
-                tauri::generate_handler![
-                    // library (read-only on iOS — populated via LAN/cloud sync)
-                    commands::get_library_stats,
-                    commands::get_tracks,
-                    commands::get_albums,
-                    commands::get_artists,
-                    commands::get_playlist_tracks,
-                    commands::search,
-                    // playback
-                    commands::get_playback_status,
-                    commands::send_player_command,
-                    commands::play_track,
-                    // playlists
-                    commands::get_playlists,
-                    commands::create_playlist,
-                    commands::update_playlist,
-                    commands::delete_playlist,
-                    commands::add_to_playlist,
-                    commands::remove_from_playlist,
-                    // lyrics + EQ
-                    commands::get_lyrics,
-                    commands::get_eq_settings,
-                    commands::set_eq_settings,
-                    // sharing
-                    commands::get_identity,
-                    commands::export_playlist_share,
-                    commands::import_playlist_share,
-                    // LAN sync (iOS is the client side)
-                    commands::discover_servers,
-                    commands::sign_pairing_challenge,
-                    commands::save_lan_server,
-                    commands::pairing_begin_remote,
-                    commands::pairing_confirm_remote,
-                    commands::trigger_local_network_prompt,
-                    commands::start_lan_sync,
-                    commands::get_lan_sync_status,
-                    commands::import_url_remote,
-                    // cloud sync — iOS pull
-                    commands::get_cloud_settings,
-                    commands::set_cloud_settings,
-                    commands::get_cloud_sync_status,
-                    commands::pull_from_cloud,
-                ]
-            }
-        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_tracks,
+            commands::get_track,
+            commands::search_tracks,
+            commands::delete_track,
+            commands::scan_library,
+            commands::get_playlists,
+            commands::create_playlist,
+            commands::delete_playlist,
+            commands::get_playlist_tracks,
+            commands::add_to_playlist,
+            commands::play_track,
+            commands::pause,
+            commands::resume,
+            commands::set_volume,
+            commands::get_player_state,
+            commands::next_track,
+            commands::prev_track,
+            commands::seek,
+            commands::get_setting,
+            commands::set_setting,
+            commands::get_cloud_settings,
+            commands::set_cloud_settings,
+            commands::get_cloud_sync_status,
+            commands::upload_track_to_cloud,
+            commands::sync_all_to_cloud,
+            commands::pull_from_cloud,
+        ])
         .run(tauri::generate_context!())
-        .expect("error while running Sravya");
-}
-
-#[cfg(windows)]
-fn ensure_lan_firewall_rule(port: u16) {
-    // 1. Try to delete the rule first to avoid duplicates
-    let _ = std::process::Command::new("netsh")
-        .args([
-            "advfirewall",
-            "firewall",
-            "delete",
-            "rule",
-            "name=Sravya LAN Sync",
-        ])
-        .output();
-
-    // 2. Add the rule with the current port
-    let add_res = std::process::Command::new("netsh")
-        .args([
-            "advfirewall",
-            "firewall",
-            "add",
-            "rule",
-            "name=Sravya LAN Sync",
-            "dir=in",
-            "action=allow",
-            "protocol=tcp",
-            &format!("localport={}", port),
-        ])
-        .output();
-
-    match add_res {
-        Ok(output) if output.status.success() => {
-            tracing::info!(
-                "Successfully ensured Windows Firewall rule for Sravya LAN Sync on port {port}"
-            );
-        }
-        Ok(output) => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            tracing::warn!(
-                "Could not register Windows Firewall rule automatically (status: {}). Error: {}. NOTE: If LAN sync fails, please run Sravya as Administrator once or manually allow port {} in Windows Defender Firewall.",
-                output.status,
-                stderr.trim(),
-                port
-            );
-        }
-        Err(e) => {
-            tracing::warn!(
-                "Failed to invoke netsh to configure firewall: {e}. If LAN sync fails, please manually allow port {} in Windows Defender Firewall.",
-                port
-            );
-        }
-    }
+        .expect("error running Sravya");
 }

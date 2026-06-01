@@ -1,20 +1,16 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+'use strict'
 
-let db;
+const Database = require('better-sqlite3')
+const path = require('path')
+const fs = require('fs')
 
-function getDb() {
-  return db;
-}
+function createDatabase(dataDir) {
+  const dbDir = path.join(dataDir, 'db')
+  fs.mkdirSync(dbDir, { recursive: true })
 
-function initDb(dataDir) {
-  const dbDir = path.join(dataDir, 'db');
-  fs.mkdirSync(dbDir, { recursive: true });
-
-  db = new Database(path.join(dbDir, 'sravya.db'));
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const db = new Database(path.join(dbDir, 'sravya.db'))
+  db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS tracks (
@@ -43,9 +39,9 @@ function initDb(dataDir) {
 
     CREATE INDEX IF NOT EXISTS idx_change_log_occurred_at ON change_log(occurred_at);
     CREATE INDEX IF NOT EXISTS idx_tracks_file_hash ON tracks(file_hash);
-  `);
+  `)
 
-  return db;
+  return db
 }
 
-module.exports = { initDb, getDb };
+module.exports = { createDatabase }

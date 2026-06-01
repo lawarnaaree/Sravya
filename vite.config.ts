@@ -1,37 +1,27 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import path from "path";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { resolve } from 'path'
 
-// @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
-
-export default defineConfig(async () => ({
+export default defineConfig({
   plugins: [react(), tailwindcss()],
-
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: { '@': resolve(__dirname, './src') },
   },
-
-  clearScreen: false,
   server: {
     port: 1420,
     strictPort: true,
-    host: host || true,
-    hmr: host
-      ? { protocol: "ws", host, port: 1421 }
-      : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ['**/src-tauri/**'],
     },
   },
-
   test: {
-    environment: "jsdom",
     globals: true,
-    setupFiles: ["./src/test/setup.ts"],
-    exclude: ["**/node_modules/**", "**/dist/**", "server/**"],
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.tsx'],
+    exclude: ['**/node_modules/**', '**/server/**', '**/src-tauri/**'],
+    coverage: {
+      exclude: ['**/node_modules/**', '**/server/**', '**/src-tauri/**'],
+    },
   },
-}));
+})

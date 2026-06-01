@@ -1,339 +1,137 @@
-import { useRef, useCallback } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Play, Music2, ListPlus, Check } from "lucide-react";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Track } from "@/api";
-import { api } from "@/api";
-import { usePlayerStore } from "@/state/player";
-import { cn, formatDuration, coverUrl } from "@/lib/utils";
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useRef } from 'react'
+import { Play } from 'lucide-react'
+import type { Track } from '@/api'
+import { usePlayerStore } from '@/state/player'
+import { usePlayback } from '@/hooks/usePlayback'
+import { formatDuration, cn } from '@/lib/utils'
 
-interface TrackListProps {
-  tracks: Track[];
-  showAlbum?: boolean;
-  onPlayTrack?: (track: Track, index: number) => void;
+interface Props {
+  tracks: Track[]
 }
 
-const codecStyle = (codec: string) => {
-  const lossless = codec === "FLAC" || codec === "ALAC";
-  return {
-    background: lossless ? "rgba(201,148,58,0.12)" : "var(--surface-high)",
-    color: lossless ? "var(--gold)" : "var(--text-subtle)",
-    border: `1px solid ${lossless ? "rgba(201,148,58,0.28)" : "var(--border)"}`,
-  };
-};
+export function TrackList({ tracks }: Props) {
+  const parentRef = useRef<HTMLDivElement>(null)
+  const { currentTrack, isPlaying } = usePlayerStore()
+  const { play } = usePlayback()
 
-function AddToPlaylistButton({ trackId }: { trackId: string }) {
-  const queryClient = useQueryClient();
-
-  const { data: playlists = [] } = useQuery({
-    queryKey: ["playlists"],
-    queryFn: () => api.playlists.list(),
-    staleTime: 30_000,
-  });
-
-  const addMutation = useMutation({
-    mutationFn: ({ playlistId }: { playlistId: string }) =>
-      api.playlists.addTrack(playlistId, trackId),
-    onSuccess: (_, { playlistId }) => {
-      queryClient.invalidateQueries({ queryKey: ["playlist-tracks", playlistId] });
-      queryClient.invalidateQueries({ queryKey: ["playlists"] });
-    },
-  });
-
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <button
-          className="flex items-center justify-center rounded p-1 opacity-0 transition-all group-hover:opacity-100 hover:text-[var(--text)] active:scale-90"
-          style={{ color: "var(--text-subtle)" }}
-          aria-label="Add to playlist"
-          title="Add to playlist"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ListPlus size={14} />
-        </button>
-      </DropdownMenu.Trigger>
-
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          side="left"
-          align="center"
-          sideOffset={6}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            background: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            borderRadius: "10px",
-            padding: "4px",
-            minWidth: "180px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-            zIndex: 100,
-          }}
-        >
-          <div
-            style={{
-              padding: "6px 10px 4px",
-              fontSize: "10px",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              color: "var(--text-subtle)",
-              textTransform: "uppercase",
-            }}
-          >
-            Add to playlist
-          </div>
-
-          {playlists.length === 0 ? (
-            <div
-              style={{
-                padding: "8px 10px",
-                fontSize: "13px",
-                color: "var(--text-muted)",
-              }}
-            >
-              No playlists yet
-            </div>
-          ) : (
-            playlists.map((pl) => (
-              <DropdownMenu.Item
-                key={pl.id}
-                onSelect={() => addMutation.mutate({ playlistId: pl.id })}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "8px",
-                  padding: "7px 10px",
-                  borderRadius: "6px",
-                  fontSize: "13px",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  outline: "none",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "var(--surface-high)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "";
-                }}
-              >
-                <span className="truncate">{pl.name}</span>
-                {addMutation.isSuccess && addMutation.variables?.playlistId === pl.id && (
-                  <Check size={12} style={{ color: "var(--gold)", flexShrink: 0 }} />
-                )}
-              </DropdownMenu.Item>
-            ))
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-export default function TrackList({ tracks, showAlbum = true, onPlayTrack }: TrackListProps) {
-  "use no memo";
-  const parentRef = useRef<HTMLDivElement>(null);
-  const currentTrackId = usePlayerStore((s) => s.currentTrack?.id);
-  const playerState = usePlayerStore((s) => s.state);
-
-  const rowVirtualizer = useVirtualizer({
+  const virtualizer = useVirtualizer({
     count: tracks.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 56,
+    estimateSize: () => 48,
     overscan: 8,
-  });
-
-  const handlePlay = useCallback(
-    (track: Track, index: number) => {
-      if (onPlayTrack) {
-        onPlayTrack(track, index);
-      } else {
-        api.playback.command({
-          type: "playQueue",
-          track_ids: tracks.map((t) => t.id),
-          start_index: index,
-        });
-      }
-    },
-    [tracks, onPlayTrack]
-  );
+  })
 
   if (tracks.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
-        <Music2 size={40} style={{ color: "var(--text-subtle)" }} />
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No tracks here yet
-        </p>
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[var(--text-3)] text-sm">No tracks</p>
       </div>
-    );
+    )
   }
 
-  const cols = showAlbum
-    ? "32px minmax(0,1.6fr) minmax(0,1fr) 80px 52px 28px"
-    : "32px minmax(0,1fr) 80px 52px 28px";
-
   return (
-    <div ref={parentRef} className="h-full overflow-auto">
-      {/* Column header */}
-      <div
-        className="sticky top-0 z-10 grid items-center gap-3 border-b px-4 py-2"
-        style={{
-          gridTemplateColumns: cols,
-          background: "var(--surface)",
-          borderColor: "var(--border-subtle)",
-          color: "var(--text-subtle)",
-          fontSize: "11px",
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-        }}
-      >
-        <span className="text-center">#</span>
-        <span>Title</span>
-        {showAlbum && <span>Album</span>}
-        <span className="text-right">Time</span>
-        <span>Quality</span>
-        <span />
-      </div>
+    <div ref={parentRef} className="flex-1 overflow-auto">
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {/* Header */}
+        <div
+          className="sticky top-0 flex items-center px-4 py-2 border-b text-[11px] font-medium uppercase tracking-wider z-10"
+          style={{
+            color: 'var(--text-3)',
+            borderColor: 'var(--separator)',
+            background: 'var(--bg)',
+          }}
+        >
+          <span className="w-8 shrink-0">#</span>
+          <span className="flex-1">Title</span>
+          <span className="w-32 hidden md:block">Album</span>
+          <span className="w-16 text-right">Time</span>
+        </div>
 
-      {/* Virtual rows */}
-      <div
-        style={{
-          height: `${rowVirtualizer.getTotalSize()}px`,
-          position: "relative",
-        }}
-      >
-        {rowVirtualizer.getVirtualItems().map((vRow) => {
-          const track = tracks[vRow.index];
-          const isCurrent = track.id === currentTrackId;
-          const isPlaying = isCurrent && playerState === "playing";
+        {virtualizer.getVirtualItems().map(vItem => {
+          const track = tracks[vItem.index]
+          const isCurrent = currentTrack?.id === track.id
 
           return (
             <div
               key={track.id}
-              data-index={vRow.index}
-              ref={rowVirtualizer.measureElement}
+              data-index={vItem.index}
+              ref={virtualizer.measureElement}
+              style={{ position: 'absolute', top: vItem.start, left: 0, right: 0 }}
               className={cn(
-                "group absolute right-0 left-0 grid cursor-pointer items-center gap-3 px-4"
+                'flex items-center px-4 h-12 group transition-colors cursor-pointer',
+                isCurrent
+                  ? 'bg-[var(--accent)]/5'
+                  : 'hover:bg-black/4 dark:hover:bg-white/4',
               )}
-              style={{
-                top: vRow.start,
-                height: 56,
-                gridTemplateColumns: cols,
-                background: isCurrent ? "var(--surface-high)" : undefined,
-                transition: "background 0.1s",
-                borderRadius: "4px",
-              }}
-              onMouseEnter={(e) => {
-                if (!isCurrent)
-                  (e.currentTarget as HTMLElement).style.background = "var(--surface-high)";
-              }}
-              onMouseLeave={(e) => {
-                if (!isCurrent) (e.currentTarget as HTMLElement).style.background = "";
-              }}
-              onDoubleClick={() => handlePlay(track, vRow.index)}
+              onDoubleClick={() => play(track.id)}
             >
-              {/* Row number / play indicator */}
-              <div className="flex items-center justify-center">
-                {isPlaying ? (
-                  <div className="flex h-4 items-end gap-[2px]">
-                    <div className="np-bar" />
-                    <div className="np-bar" />
-                    <div className="np-bar" />
+              {/* Index / now-playing */}
+              <div className="w-8 shrink-0 flex items-center justify-center">
+                {isCurrent && isPlaying ? (
+                  <div className="flex items-end gap-0.5 h-4">
+                    <div className="playing-dot" />
+                    <div className="playing-dot" />
+                    <div className="playing-dot" />
                   </div>
-                ) : isCurrent ? (
-                  <>
-                    <span
-                      className="text-xs tabular-nums group-hover:hidden"
-                      style={{ color: "var(--gold)" }}
-                    >
-                      {vRow.index + 1}
-                    </span>
-                    <button
-                      className="hidden transition-transform duration-75 group-hover:flex active:scale-90"
-                      onClick={() => handlePlay(track, vRow.index)}
-                      aria-label={`Play ${track.title}`}
-                    >
-                      <Play size={13} fill="currentColor" style={{ color: "var(--gold)" }} />
-                    </button>
-                  </>
                 ) : (
                   <>
                     <span
-                      className="text-xs tabular-nums group-hover:hidden"
-                      style={{ color: "var(--text-subtle)" }}
+                      className="text-[12px] tabular-nums group-hover:hidden"
+                      style={{ color: isCurrent ? 'var(--accent)' : 'var(--text-3)' }}
                     >
-                      {vRow.index + 1}
+                      {vItem.index + 1}
                     </span>
                     <button
-                      className="hidden transition-transform duration-75 group-hover:flex active:scale-90"
-                      onClick={() => handlePlay(track, vRow.index)}
-                      aria-label={`Play ${track.title}`}
+                      onClick={() => play(track.id)}
+                      className="hidden group-hover:flex"
+                      style={{ color: 'var(--accent)' }}
                     >
-                      <Play size={13} fill="currentColor" style={{ color: "var(--text)" }} />
+                      <Play size={14} fill="currentColor" />
                     </button>
                   </>
                 )}
               </div>
 
-              {/* Cover + title / artist */}
-              <div className="flex min-w-0 items-center gap-3">
-                {coverUrl(track.coverPath) ? (
-                  <img
-                    src={coverUrl(track.coverPath)}
-                    alt=""
-                    className="h-9 w-9 shrink-0 rounded-sm object-cover"
-                    style={{ opacity: 0.92 }}
-                  />
-                ) : (
-                  <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm"
-                    style={{ background: "var(--overlay)" }}
-                  >
-                    <Music2 size={12} style={{ color: "var(--text-subtle)" }} />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <p
-                    className="truncate text-sm font-medium"
-                    style={{ color: isCurrent ? "var(--gold)" : "var(--text)" }}
-                  >
-                    {track.title}
-                  </p>
-                  <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                    {track.artist}
-                  </p>
-                </div>
+              {/* Title + artist */}
+              <div className="flex-1 min-w-0 mr-4">
+                <p
+                  className="text-[14px] truncate font-medium"
+                  style={{ color: isCurrent ? 'var(--accent)' : 'var(--text)' }}
+                >
+                  {track.title}
+                </p>
+                <p className="text-[12px] truncate" style={{ color: 'var(--text-2)' }}>
+                  {track.artist ?? 'Unknown artist'}
+                </p>
               </div>
 
               {/* Album */}
-              {showAlbum && (
-                <p className="truncate text-sm" style={{ color: "var(--text-muted)" }}>
-                  {track.album}
-                </p>
-              )}
-
-              {/* Duration */}
-              <p className="text-right text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
-                {formatDuration(track.durationMs)}
-              </p>
-
-              {/* Codec badge */}
               <span
-                className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide"
-                style={codecStyle(track.codec)}
+                className="w-32 hidden md:block text-[13px] truncate"
+                style={{ color: 'var(--text-3)' }}
               >
-                {track.codec}
+                {track.album ?? ''}
               </span>
 
-              {/* Add to playlist */}
-              <AddToPlaylistButton trackId={track.id} />
+              {/* Duration */}
+              <div className="w-16 flex items-center justify-end gap-2">
+                {track.codec && (
+                  <span
+                    className="text-[9px] px-1 py-0.5 rounded font-mono uppercase hidden group-hover:inline"
+                    style={{ background: 'var(--border)', color: 'var(--text-3)' }}
+                  >
+                    {track.codec.replace(/[^A-Za-z0-9]/g, '').slice(0, 4)}
+                  </span>
+                )}
+                <span className="text-[13px] tabular-nums" style={{ color: 'var(--text-3)' }}>
+                  {formatDuration(track.duration_ms ?? 0)}
+                </span>
+              </div>
             </div>
-          );
+          )
         })}
       </div>
     </div>
-  );
+  )
 }

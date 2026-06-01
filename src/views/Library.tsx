@@ -1,168 +1,132 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Music2, Disc3, Mic2 } from "lucide-react";
-import { api } from "@/api";
-import TrackList from "@/components/TrackList";
-import AlbumGrid from "@/components/AlbumGrid";
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Search } from 'lucide-react'
+import { api } from '@/api'
+import { TrackList } from '@/components/TrackList'
+import { AlbumGrid } from '@/components/AlbumGrid'
+import { pluralize } from '@/lib/utils'
 
-type Tab = "songs" | "albums" | "artists";
+type Tab = 'songs' | 'albums'
 
-const tabs: { value: Tab; label: string; icon: React.ElementType }[] = [
-  { value: "songs", label: "Songs", icon: Music2 },
-  { value: "albums", label: "Albums", icon: Disc3 },
-  { value: "artists", label: "Artists", icon: Mic2 },
-];
+export function Library() {
+  const [tab, setTab] = useState<Tab>('songs')
+  const [search, setSearch] = useState('')
 
-export default function Library() {
-  const [activeTab, setActiveTab] = useState<Tab>("songs");
+  const { data: tracks = [], isLoading } = useQuery({
+    queryKey: ['tracks'],
+    queryFn: api.tracks.list,
+  })
 
-  const tracksQuery = useQuery({
-    queryKey: ["tracks"],
-    queryFn: () => api.library.tracks(5000, 0),
-  });
-  const albumsQuery = useQuery({
-    queryKey: ["albums"],
-    queryFn: () => api.library.albums(),
-  });
-  const artistsQuery = useQuery({
-    queryKey: ["artists"],
-    queryFn: () => api.library.artists(),
-  });
-  const statsQuery = useQuery({
-    queryKey: ["stats"],
-    queryFn: () => api.library.stats(),
-  });
+  const filtered = search
+    ? tracks.filter(
+        t =>
+          t.title.toLowerCase().includes(search.toLowerCase()) ||
+          t.artist?.toLowerCase().includes(search.toLowerCase()) ||
+          t.album?.toLowerCase().includes(search.toLowerCase()),
+      )
+    : tracks
 
-  const tracks = tracksQuery.data ?? [];
-  const albums = albumsQuery.data ?? [];
-  const artists = artistsQuery.data ?? [];
-  const stats = statsQuery.data;
-
-  const totalMs = stats?.totalDurationMs ?? 0;
-  const hours = Math.floor(totalMs / 3_600_000);
-  const mins = Math.floor((totalMs % 3_600_000) / 60_000);
+  const albumMap = new Map<string, typeof tracks>()
+  tracks.forEach(t => {
+    const key = t.album ?? 'Unknown Album'
+    albumMap.set(key, [...(albumMap.get(key) ?? []), t])
+  })
+  const albums = Array.from(albumMap.entries()).map(([name, ts]) => ({
+    name,
+    artist: ts[0]?.artist,
+    cover_hash: ts[0]?.cover_hash,
+    tracks: ts,
+  }))
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Gradient header */}
-      <div className="page-header-gradient shrink-0">
-        <div className="px-6 pt-8 pb-4">
-          <p
-            className="mb-1 text-[10px] font-semibold tracking-widest uppercase"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Your
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
-            Library
-          </h1>
-          {stats && (
-            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              {stats.trackCount.toLocaleString()} tracks · {stats.albumCount.toLocaleString()}{" "}
-              albums · {stats.artistCount.toLocaleString()} artists
-              {totalMs > 0 ? ` · ${hours > 0 ? `${hours}h ` : ""}${mins}m` : ""}
-            </p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header */}
+      <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.4px', marginBottom: '14px' }}>
+          Library
+        </h1>
+
+        {/* Search bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 12px',
+            borderRadius: '10px',
+            background: 'var(--surface-raised)',
+            boxShadow: 'var(--shadow-card)',
+            marginBottom: '16px',
+          }}
+        >
+          <Search size={14} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filter…"
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              fontSize: '14px',
+              color: 'var(--text)',
+            }}
+          />
+          {filtered.length > 0 && (
+            <span style={{ fontSize: '12px', color: 'var(--text-3)', flexShrink: 0 }}>
+              {pluralize(filtered.length, 'track')}
+            </span>
           )}
         </div>
 
         {/* Pill tabs */}
-        <div className="flex gap-2 px-6 pb-4">
-          {tabs.map(({ value, label, icon: Icon }) => (
+        <div
+          style={{
+            display: 'inline-flex',
+            background: 'var(--control-bg)',
+            borderRadius: '10px',
+            padding: '3px',
+            marginBottom: '12px',
+          }}
+        >
+          {(['songs', 'albums'] as Tab[]).map(t => (
             <button
-              key={value}
-              onClick={() => setActiveTab(value)}
-              className="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-150"
-              style={
-                activeTab === value
-                  ? { background: "var(--gold)", color: "var(--text-on-gold)" }
-                  : {
-                      background: "var(--surface-raised)",
-                      color: "var(--text-muted)",
-                    }
-              }
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                padding: '5px 16px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 500,
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
+                background: tab === t ? 'var(--control-active)' : 'transparent',
+                color: tab === t ? 'var(--control-text)' : 'var(--control-text-inactive)',
+                boxShadow: tab === t ? 'var(--control-active-shadow)' : 'none',
+              }}
             >
-              <Icon size={13} />
-              {label}
+              {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Tab content */}
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {activeTab === "songs" &&
-          (tracksQuery.isPending ? (
-            <Spinner />
-          ) : tracks.length === 0 ? (
-            <EmptyState message="Add a folder in Settings to get started." />
-          ) : (
-            <TrackList tracks={tracks} showAlbum />
-          ))}
-
-        {activeTab === "albums" &&
-          (albumsQuery.isPending ? <Spinner /> : <AlbumGrid albums={albums} tracks={tracks} />)}
-
-        {activeTab === "artists" &&
-          (artistsQuery.isPending ? (
-            <Spinner />
-          ) : artists.length === 0 ? (
-            <EmptyState message="No artists found." />
-          ) : (
-            <div className="h-full overflow-auto">
-              {artists.map((artist) => (
-                <div
-                  key={artist.id}
-                  className="flex items-center gap-4 px-6 py-3 transition-colors"
-                  style={{ cursor: "default", borderBottom: "1px solid var(--border-subtle)" }}
-                  onMouseEnter={(e) =>
-                    ((e.currentTarget as HTMLElement).style.background = "var(--surface-high)")
-                  }
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "")}
-                >
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                    style={{ background: "var(--overlay)" }}
-                  >
-                    <Mic2 size={16} style={{ color: "var(--text-subtle)" }} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold" style={{ color: "var(--text)" }}>
-                      {artist.name}
-                    </p>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      {artist.albumCount} {artist.albumCount === 1 ? "album" : "albums"}
-                    </p>
-                  </div>
-                </div>
-              ))}
+      {/* Content */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {tab === 'songs' && (
+          isLoading ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <p style={{ color: 'var(--text-3)', fontSize: '14px' }}>Loading…</p>
             </div>
-          ))}
+          ) : (
+            <TrackList tracks={filtered} />
+          )
+        )}
+        {tab === 'albums' && <AlbumGrid albums={albums} />}
       </div>
     </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <div className="flex h-full items-center justify-center py-16">
-      <div
-        className="h-6 w-6 animate-spin rounded-full border-2"
-        style={{
-          borderColor: "var(--gold)",
-          borderTopColor: "transparent",
-        }}
-      />
-    </div>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 py-16">
-      <Music2 size={40} style={{ color: "var(--text-subtle)" }} />
-      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-        {message}
-      </p>
-    </div>
-  );
+  )
 }

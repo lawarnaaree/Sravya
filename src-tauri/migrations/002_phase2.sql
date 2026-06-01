@@ -1,12 +1,14 @@
-CREATE TABLE IF NOT EXISTS lyrics_cache (
-    track_id    TEXT PRIMARY KEY,
-    synced      TEXT,
-    plain       TEXT,
-    source      TEXT NOT NULL DEFAULT 'lrclib',
-    fetched_at  TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS tags (
+  track_id TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+  tag TEXT NOT NULL,
+  PRIMARY KEY (track_id, tag)
 );
 
-CREATE TABLE IF NOT EXISTS settings (
-    key     TEXT PRIMARY KEY,
-    value   TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS play_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  track_id TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+  played_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_tracks_title ON tracks(title);
+CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);

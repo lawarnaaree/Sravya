@@ -1,79 +1,55 @@
-import { useEffect, useRef } from "react";
-import type { LyricsLine } from "@/api";
+import { useRef, useEffect } from 'react'
 
-interface Props {
-  lines: LyricsLine[];
-  plain?: string;
-  positionMs: number;
+interface LyricLine {
+  time: number
+  text: string
 }
 
-export default function Lyrics({ lines, plain, positionMs }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef<HTMLDivElement>(null);
+interface Props {
+  lines: LyricLine[]
+  positionMs: number
+}
 
-  const activeIndex = (() => {
-    let idx = -1;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].timeMs <= positionMs) idx = i;
-      else break;
-    }
-    return idx;
-  })();
+export function Lyrics({ lines, positionMs }: Props) {
+  let activeIdx = -1
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].time * 1000 <= positionMs) { activeIdx = i; break }
+  }
+  const activeRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    if (activeRef.current && containerRef.current) {
-      activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [activeIndex]);
+    activeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [activeIdx])
 
   if (lines.length === 0) {
-    if (plain) {
-      return (
-        <div
-          ref={containerRef}
-          className="h-full overflow-y-auto px-6 py-4 text-center text-sm leading-7"
-          style={{ color: "var(--text-muted)", whiteSpace: "pre-line" }}
-        >
-          {plain}
-        </div>
-      );
-    }
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm" style={{ color: "var(--text-subtle)" }}>
-          No lyrics found
-        </p>
+      <div className="flex items-center justify-center h-full">
+        <p className="text-[var(--text-3)] text-sm">No lyrics available</p>
       </div>
-    );
+    )
   }
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto px-6 py-8">
-      <div className="flex flex-col items-center gap-3">
-        {lines.map((line, i) => {
-          const isActive = i === activeIndex;
-          const isPast = i < activeIndex;
-          return (
-            <div
-              key={i}
-              ref={isActive ? activeRef : undefined}
-              className="max-w-lg text-center transition-all duration-300"
-              style={{
-                fontSize: isActive ? "1.1rem" : "0.95rem",
-                fontWeight: isActive ? 600 : 400,
-                color: isActive
-                  ? "var(--gold)"
-                  : isPast
-                    ? "var(--text-subtle)"
-                    : "var(--text-muted)",
-                opacity: isPast ? 0.5 : isActive ? 1 : 0.75,
-              }}
-            >
-              {line.text}
-            </div>
-          );
-        })}
-      </div>
+    <div className="h-full overflow-auto py-8 px-6 space-y-3">
+      {lines.map((line, i) => {
+        const isActive = i === activeIdx
+        const isPast = i < activeIdx
+
+        return (
+          <div
+            key={i}
+            ref={isActive ? activeRef : null}
+            className="text-center transition-all duration-300"
+            style={{
+              color: isActive ? 'var(--accent)' : isPast ? 'var(--text-2)' : 'var(--text-3)',
+              fontWeight: isActive ? 600 : 400,
+              fontSize: isActive ? '18px' : '15px',
+            }}
+          >
+            {line.text}
+          </div>
+        )
+      })}
     </div>
-  );
+  )
 }

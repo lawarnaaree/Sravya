@@ -1,129 +1,92 @@
-import { NavLink, Link, useLocation } from "react-router-dom";
-import { Library, Search, Settings, ListMusic, Plus } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
-import { api } from "@/api";
+import { NavLink } from 'react-router-dom'
+import { Library, ListMusic, Search, Settings, Wifi } from 'lucide-react'
 
-const mainNav = [
-  { to: "/library", icon: Library, label: "Library" },
-  { to: "/search", icon: Search, label: "Search" },
-];
+const NAV = [
+  { to: '/library', icon: Library, label: 'Library' },
+  { to: '/playlists', icon: ListMusic, label: 'Playlists' },
+  { to: '/search', icon: Search, label: 'Search' },
+  { to: '/sync', icon: Wifi, label: 'Sync' },
+]
 
-function NavItem({
-  to,
-  icon: Icon,
-  label,
-}: {
-  to: string;
-  icon: React.ElementType;
-  label: string;
-}) {
+function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ElementType; label: string }) {
   return (
     <NavLink
       to={to}
-      className={({ isActive }) =>
-        cn(
-          "flex items-center gap-3 rounded-md py-2.5 pr-3 text-sm font-semibold",
-          isActive
-            ? "pl-[10px] text-[var(--text)]"
-            : "pl-3 text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
-        )
-      }
-      style={({ isActive }) =>
-        isActive
-          ? {
-              background: "var(--surface-raised)",
-            }
-          : { borderLeft: "2px solid transparent" }
-      }
-    >
-      <Icon size={20} />
-      {label}
-    </NavLink>
-  );
-}
-
-export default function Sidebar() {
-  const location = useLocation();
-  const activePlaylistId = new URLSearchParams(location.search).get("id");
-
-  const { data: playlists = [] } = useQuery({
-    queryKey: ["playlists"],
-    queryFn: () => api.playlists.list(),
-  });
-
-  return (
-    <aside
-      className="flex shrink-0 flex-col py-4"
-      style={{
-        width: "var(--sidebar-w)",
-        background: "var(--sidebar-bg)",
+      style={({ isActive }) => ({
+        display: 'flex',
+        alignItems: 'center',
+        gap: '9px',
+        padding: '7px 10px',
+        borderRadius: '10px',
+        fontSize: '14px',
+        fontWeight: 500,
+        transition: 'background 0.15s ease, color 0.15s ease',
+        background: isActive ? 'var(--accent-muted)' : 'transparent',
+        color: isActive ? 'var(--accent)' : 'var(--text-2)',
+        textDecoration: 'none',
+      })}
+      onMouseEnter={e => {
+        const el = e.currentTarget
+        if (!el.getAttribute('aria-current')) {
+          el.style.background = 'rgba(0,0,0,0.05)'
+          el.style.color = 'var(--text)'
+        }
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget
+        if (!el.getAttribute('aria-current')) {
+          el.style.background = 'transparent'
+          el.style.color = 'var(--text-2)'
+        }
       }}
     >
-      {/* Main nav */}
-      <nav className="flex flex-col gap-0.5 px-2">
-        {mainNav.map((item) => (
+      <Icon size={16} strokeWidth={1.75} />
+      {label}
+    </NavLink>
+  )
+}
+
+export function Sidebar() {
+  return (
+    <aside
+      style={{
+        width: '220px',
+        flexShrink: 0,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--sidebar)',
+        backdropFilter: 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+        boxShadow: 'var(--shadow-sidebar)',
+      }}
+    >
+      {/* App identity */}
+      <div style={{ padding: '20px 16px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+          <img
+            src="/logo.png"
+            alt="Sravya"
+            style={{ width: '28px', height: '28px', borderRadius: '8px', objectFit: 'cover' }}
+          />
+          <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.2px' }}>
+            Sravya
+          </span>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav style={{ flex: 1, padding: '0 8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {NAV.map(item => (
           <NavItem key={item.to} {...item} />
         ))}
       </nav>
 
-      {/* Divider */}
-      <div className="mx-4 my-4 h-px" style={{ background: "var(--border-subtle)" }} />
-
-      {/* Your Library */}
-      <div className="flex flex-1 flex-col overflow-hidden px-2">
-        <div className="mb-2 flex items-center justify-between px-3">
-          <div className="flex items-center gap-2">
-            <ListMusic size={18} style={{ color: "var(--text-subtle)" }} />
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                color: "var(--text-subtle)",
-              }}
-            >
-              Your Library
-            </span>
-          </div>
-          <NavLink
-            to="/playlists?create=true"
-            title="New playlist"
-            className="rounded p-0.5 transition-colors hover:text-[var(--text)]"
-            style={{ color: "var(--text-subtle)" }}
-          >
-            <Plus size={14} />
-          </NavLink>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {playlists.length === 0 ? (
-            <p className="px-3 py-1 text-xs" style={{ color: "var(--text-subtle)" }}>
-              No playlists yet
-            </p>
-          ) : (
-            playlists.map((pl) => (
-              <Link
-                key={pl.id}
-                to={`/playlists?id=${pl.id}`}
-                className={cn(
-                  "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
-                  activePlaylistId === String(pl.id)
-                    ? "bg-[var(--surface-raised)] text-[var(--text)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
-                )}
-              >
-                <span className="truncate">{pl.name}</span>
-              </Link>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Settings */}
-      <div className="mt-2 px-2">
+      {/* Settings at bottom */}
+      <div style={{ padding: '8px 8px 12px' }}>
+        <div style={{ height: '1px', background: 'var(--separator)', margin: '0 4px 8px' }} />
         <NavItem to="/settings" icon={Settings} label="Settings" />
       </div>
     </aside>
-  );
+  )
 }

@@ -1,733 +1,266 @@
-import { useState, useEffect } from "react";
-import {
-  Wifi,
-  WifiOff,
-  RefreshCw,
-  CheckCircle,
-  Loader2,
-  Smartphone,
-  QrCode,
-  ChevronDown,
-  ChevronRight,
-  Cloud,
-  CloudDownload,
-  Eye,
-  EyeOff,
-} from "lucide-react";
-import {
-  scan,
-  Format,
-  checkPermissions,
-  requestPermissions,
-} from "@tauri-apps/plugin-barcode-scanner";
-import { listen } from "@tauri-apps/api/event";
-import { api } from "@/api";
-import { useLanSyncStore, type DiscoveredServer } from "@/state/lanSync";
-import type { LanSyncReport } from "@/api";
-import { usePlatform } from "@/hooks/usePlatform";
+import { useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Wifi, Cloud, RefreshCw, ArrowDownToLine } from 'lucide-react'
+import { api } from '@/api'
+import { useLanSyncStore } from '@/state/lanSync'
 
-function parsePairingUri(uri: string): { serverAddress: string; challenge: string } | null {
-  if (!uri.startsWith("sravya://pair")) return null;
-  // URL parser chokes on the custom scheme + missing slashes, so swap to http:// for parsing.
-  const u = new URL(uri.replace(/^sravya:\/\/pair/, "http://pair"));
-  const host = u.searchParams.get("host");
-  const port = u.searchParams.get("port");
-  const challenge = u.searchParams.get("challenge");
-  if (!host || !port || !challenge) return null;
-  return { serverAddress: `http://${host}:${port}`, challenge };
-}
+type Tab = 'cloud' | 'lan'
 
-function HotspotInstructions() {
-  const [expanded, setExpanded] = useState(false);
+function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mt-4 rounded-xl border" style={{ borderColor: "var(--border)" }}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-        style={{ color: "var(--text)" }}
-      >
-        <span className="flex items-center gap-2">
-          <Smartphone size={16} style={{ color: "var(--gold)" }} />
-          Direct Connection (No Router)
-        </span>
-        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-4 text-sm" style={{ color: "var(--text-muted)" }}>
-          <p className="mb-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-            No shared WiFi needed. Works like SHAREit — iPhone becomes the router.
-          </p>
-          <ol className="flex list-decimal flex-col gap-2 pl-4">
-            <li>
-              On iPhone: <strong>Settings → Personal Hotspot → Allow Others to Join ✓</strong>
-            </li>
-            <li>
-              On Windows: <strong>WiFi → connect to &quot;[Your Name]&apos;s iPhone&quot;</strong>
-            </li>
-            <li>
-              Tap <strong>&quot;Find Desktop&quot;</strong> above
-            </li>
-          </ol>
-        </div>
-      )}
+    <div
+      style={{
+        background: 'var(--surface-raised)',
+        borderRadius: '16px',
+        padding: '20px',
+        boxShadow: 'var(--shadow-card)',
+      }}
+    >
+      {children}
     </div>
-  );
+  )
 }
 
-function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
-  const platform = usePlatform();
-  const [searching, setSearching] = useState(false);
-  const { discoveredServers, setDiscoveredServers } = useLanSyncStore();
-  const [pairing, setPairing] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function Sync() {
+  const [tab, setTab] = useState<Tab>('cloud')
+  const lanStore = useLanSyncStore()
 
-  const handleDiscover = async () => {
-    setSearching(true);
-    setError(null);
-    try {
-      const servers = await api.lan.discoverServers(5);
-      setDiscoveredServers(servers);
-      if (servers.length === 0) setError("No Sravya desktop found on this network.");
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSearching(false);
-    }
-  };
+  const { data: cloudStatus, refetch: refetchCloud } = useQuery({
+    queryKey: ['cloud-status'],
+    queryFn: api.cloud.getStatus,
+    refetchInterval: 3000,
+  })
 
-  const handlePair = async (server: DiscoveredServer) => {
-    setPairing(server.address);
-    setError(null);
-    try {
-      const { challenge } = await api.lan.initiatePairing(server.address);
-      const result = await api.lan.completePairing(server.address, "My iPhone", challenge);
-      if (result.success) {
-        onPaired();
-      } else {
-        setError("Pairing failed. Make sure the code matches on both devices.");
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setPairing(null);
-    }
-  };
+  const syncAllMutation = useMutation({
+    mutationFn: api.cloud.syncAll,
+    onSuccess: () => refetchCloud(),
+  })
 
-  const handleScanQr = async () => {
-    setError(null);
-    setScanning(true);
-    try {
-      let perm = await checkPermissions();
-      if (perm !== "granted" && perm !== "denied") {
-        perm = await requestPermissions();
-      }
-      if (perm !== "granted") {
-        setError("Camera permission denied. Enable it in iOS Settings → Sravya.");
-        return;
-      }
+  const pullMutation = useMutation({
+    mutationFn: api.cloud.pull,
+    onSuccess: () => refetchCloud(),
+  })
 
-      const result = await scan({ windowed: false, formats: [Format.QRCode] });
-      const parsed = parsePairingUri(result.content);
-      if (!parsed) {
-        setError("That QR code isn't a Sravya pairing code.");
-        return;
-      }
-
-      setPairing(parsed.serverAddress);
-      const completion = await api.lan.completePairing(
-        parsed.serverAddress,
-        "My iPhone",
-        parsed.challenge
-      );
-      if (completion.success) {
-        onPaired();
-      } else {
-        setError("Pairing failed. Generate a fresh QR code on the desktop and try again.");
-      }
-    } catch (e) {
-      // The plugin throws when the user cancels — don't surface that as an error.
-      const msg = String(e);
-      if (!/cancel/i.test(msg)) setError(msg);
-    } finally {
-      setPairing(null);
-      setScanning(false);
-    }
-  };
+  const lanSyncMutation = useMutation({
+    mutationFn: api.lan.startSync,
+    onMutate: () => lanStore.setSyncing(true),
+    onSettled: () => lanStore.setSyncing(false),
+  })
 
   return (
-    <div>
-      <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
-        Make sure your iPhone and computer are on the same WiFi network.
-      </p>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header */}
+      <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.4px', marginBottom: '16px' }}>
+          Sync
+        </h1>
 
-      <button
-        onClick={handleDiscover}
-        disabled={searching || scanning}
-        className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
-        style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
-      >
-        {searching ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            Searching…
-          </>
-        ) : (
-          <>
-            <Wifi size={16} />
-            Find Desktop
-          </>
-        )}
-      </button>
-
-      {platform === "ios" && (
-        <button
-          onClick={handleScanQr}
-          disabled={searching || scanning || pairing !== null}
-          className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
+        {/* Pill tab switcher */}
+        <div
           style={{
-            background: "var(--surface-raised)",
-            color: "var(--text)",
-            border: "1px solid var(--border)",
+            display: 'inline-flex',
+            background: 'var(--control-bg)',
+            borderRadius: '10px',
+            padding: '3px',
+            marginBottom: '20px',
           }}
         >
-          {scanning ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Opening camera…
-            </>
-          ) : (
-            <>
-              <QrCode size={16} />
-              Scan QR from Desktop
-            </>
-          )}
-        </button>
-      )}
-
-      {error && (
-        <div className="mb-3">
-          <p className="text-sm" style={{ color: "#ef4444" }}>
-            {error}
-          </p>
-          {(error.includes("Cannot reach") || error.includes("request failed")) && (
-            <p className="mt-1 text-xs" style={{ color: "var(--text-subtle)" }}>
-              Check that Windows Firewall allows Sravya (port 41892 TCP inbound), or use Hotspot
-              Mode below.
-            </p>
-          )}
-        </div>
-      )}
-
-      {discoveredServers.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {discoveredServers.map((server) => (
+          {([
+            { value: 'cloud' as Tab, icon: Cloud, label: 'Cloud Sync' },
+            { value: 'lan' as Tab, icon: Wifi, label: 'LAN Sync' },
+          ]).map(({ value, icon: Icon, label }) => (
             <button
-              key={server.address}
-              onClick={() => handlePair(server)}
-              disabled={pairing === server.address}
-              className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all"
+              key={value}
+              onClick={() => setTab(value)}
               style={{
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                opacity: pairing && pairing !== server.address ? 0.5 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 14px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 500,
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
+                background: tab === value ? 'var(--control-active)' : 'transparent',
+                color: tab === value ? 'var(--control-text)' : 'var(--control-text-inactive)',
+                boxShadow: tab === value ? 'var(--control-active-shadow)' : 'none',
               }}
             >
-              <Smartphone size={18} style={{ color: "var(--gold)", flexShrink: 0 }} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold" style={{ color: "var(--text)" }}>
-                  {server.name.split(".")[0]}
-                </p>
-                <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                  {server.address}
+              <Icon size={13} />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Panels */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
+        {tab === 'cloud' && (
+          <Card>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px' }}>
+                  Cloud Sync
+                </h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>
+                  {cloudStatus?.isConfigured
+                    ? 'sravya.api.lawarnaaree.com.np'
+                    : 'Configure in Settings → Cloud Sync'}
                 </p>
               </div>
-              {pairing === server.address ? (
-                <Loader2
-                  size={16}
-                  className="shrink-0 animate-spin"
-                  style={{ color: "var(--gold)" }}
-                />
-              ) : (
-                <span className="shrink-0 text-xs" style={{ color: "var(--text-subtle)" }}>
-                  Tap to pair
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <HotspotInstructions />
-    </div>
-  );
-}
-
-function SyncStatusPanel() {
-  const { lastSyncedAt, isSyncing, syncProgress, fileProgress } = useLanSyncStore();
-  const [lastReport, setLastReport] = useState<LanSyncReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const activeFiles = Object.entries(fileProgress).filter(([, p]) => p < 1);
-
-  const handleSync = async () => {
-    setError(null);
-    setLastReport(null);
-    try {
-      const report = await api.lan.startSync();
-      setLastReport(report);
-    } catch (e) {
-      setError(String(e));
-    }
-  };
-
-  return (
-    <div>
-      <div
-        className="mb-4 flex items-center gap-3 rounded-xl p-4"
-        style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
-      >
-        <CheckCircle size={20} style={{ color: "var(--gold)", flexShrink: 0 }} />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-            Connected to desktop
-          </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {lastSyncedAt
-              ? `Last synced ${new Date(lastSyncedAt).toLocaleString()}`
-              : "Never synced"}
-          </p>
-        </div>
-      </div>
-
-      {isSyncing && (
-        <div className="mb-4">
-          <div className="mb-1 flex items-center justify-between">
-            <span
-              className="flex items-center gap-1.5 text-xs"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <Loader2 size={11} className="animate-spin" />
-              Syncing…
-            </span>
-            <span className="text-xs tabular-nums" style={{ color: "var(--text-subtle)" }}>
-              {Math.round(syncProgress * 100)}%
-            </span>
-          </div>
-          <div
-            className="h-1 overflow-hidden rounded-full"
-            style={{ background: "var(--overlay)" }}
-          >
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${syncProgress * 100}%`, background: "var(--gold)" }}
-            />
-          </div>
-          {activeFiles.length > 0 && (
-            <div className="mt-2 flex flex-col gap-1">
-              {activeFiles.slice(0, 3).map(([hash, p]) => (
-                <div key={hash} className="flex items-center gap-2">
-                  <div
-                    className="h-0.5 flex-1 overflow-hidden rounded-full"
-                    style={{ background: "var(--overlay)" }}
-                  >
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${p * 100}%`, background: "var(--gold)", opacity: 0.6 }}
-                    />
-                  </div>
-                  <span
-                    className="w-8 text-right text-[10px] tabular-nums"
-                    style={{ color: "var(--text-subtle)" }}
-                  >
-                    {Math.round(p * 100)}%
-                  </span>
-                </div>
-              ))}
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: cloudStatus?.isConfigured ? 'var(--green)' : 'var(--text-3)',
+                }}
+              />
             </div>
-          )}
-        </div>
-      )}
 
-      {lastReport && !isSyncing && (
-        <div className="mb-4 rounded-xl px-4 py-3" style={{ background: "var(--surface-raised)" }}>
-          <p className="text-sm" style={{ color: "var(--text)" }}>
-            {lastReport.added} added · {lastReport.skipped} already up-to-date
-            {lastReport.errors > 0 && ` · ${lastReport.errors} errors`}
-          </p>
-        </div>
-      )}
+            {cloudStatus?.lastSyncedAt && (
+              <p style={{ fontSize: '12px', color: 'var(--text-3)', marginBottom: '4px' }}>
+                Last uploaded: {new Date(cloudStatus.lastSyncedAt).toLocaleString()}
+              </p>
+            )}
+            {cloudStatus?.lastPullAt && (
+              <p style={{ fontSize: '12px', color: 'var(--text-3)', marginBottom: '12px' }}>
+                Last pulled: {new Date(cloudStatus.lastPullAt).toLocaleString()}
+              </p>
+            )}
+            {!cloudStatus?.lastSyncedAt && !cloudStatus?.lastPullAt && (
+              <div style={{ height: '8px' }} />
+            )}
 
-      {error && (
-        <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>
-          {error}
-        </p>
-      )}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => syncAllMutation.mutate()}
+                disabled={!cloudStatus?.isConfigured || syncAllMutation.isPending}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: cloudStatus?.isConfigured ? 'pointer' : 'not-allowed',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  opacity: (!cloudStatus?.isConfigured || syncAllMutation.isPending) ? 0.5 : 1,
+                  transition: 'opacity 0.15s',
+                }}
+              >
+                <RefreshCw size={14} style={{ animation: syncAllMutation.isPending ? 'spin 1s linear infinite' : 'none' }} />
+                {syncAllMutation.isPending ? 'Uploading…' : 'Upload All'}
+              </button>
 
-      <button
-        onClick={handleSync}
-        disabled={isSyncing}
-        className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
-        style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
-      >
-        {isSyncing ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            Syncing…
-          </>
-        ) : (
-          <>
-            <RefreshCw size={16} />
-            Sync Now
-          </>
-        )}
-      </button>
-    </div>
-  );
-}
-
-function CloudSyncPanel() {
-  const [showKey, setShowKey] = useState(false);
-  const [urlInput, setUrlInput] = useState("");
-  const [keyInput, setKeyInput] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [pulling, setPulling] = useState(false);
-  const [pullProgress, setPullProgress] = useState(0);
-  const [fileProgress, setFileProgress] = useState<Record<string, number>>({});
-  const [pullResult, setPullResult] = useState<{
-    added: number;
-    skipped: number;
-    errors: number;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [configured, setConfigured] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.cloud
-      .getSettings()
-      .then((s) => {
-        if (s.apiUrl) {
-          setUrlInput(s.apiUrl);
-          setConfigured(true);
-        }
-        if (s.apiKey) setKeyInput(s.apiKey);
-      })
-      .catch(() => {});
-    api.cloud
-      .getStatus()
-      .then((s) => {
-        setConfigured(s.isConfigured);
-        setLastSyncedAt(s.lastSyncedAt ?? null);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const unlisteners = [
-      listen<{ progress: number }>("cloud-sync-progress", (e) =>
-        setPullProgress(e.payload.progress)
-      ),
-      listen<{ hash: string; progress: number }>("cloud-sync-file-progress", (e) => {
-        setFileProgress((prev) => ({ ...prev, [e.payload.hash]: e.payload.progress }));
-      }),
-      listen<{ added: number; skipped: number; errors: number; error?: string }>(
-        "cloud-sync-complete",
-        (e) => {
-          setPulling(false);
-          setPullProgress(0);
-          setFileProgress({});
-          if (e.payload.error) {
-            setError("Could not reach server. Check your URL and API key.");
-          } else {
-            setPullResult(e.payload);
-            setLastSyncedAt(new Date().toISOString());
-          }
-        }
-      ),
-    ];
-    return () => {
-      unlisteners.forEach((p) => p.then((fn) => fn()));
-    };
-  }, []);
-
-  const handleSaveAndConnect = async () => {
-    if (!urlInput.trim() || !keyInput.trim()) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await api.cloud.setSettings(urlInput.trim(), keyInput.trim(), true);
-      setConfigured(true);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handlePull = async () => {
-    setPulling(true);
-    setPullResult(null);
-    setError(null);
-    setPullProgress(0);
-    setFileProgress({});
-    try {
-      const report = await api.cloud.pull();
-      setPullResult(report);
-      setLastSyncedAt(new Date().toISOString());
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setPulling(false);
-    }
-  };
-
-  if (!configured) {
-    return (
-      <div>
-        <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
-          Connect to your personal server to sync music from anywhere — no WiFi required.
-        </p>
-
-        <div className="mb-3">
-          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-subtle)" }}>
-            Server URL
-          </label>
-          <input
-            type="url"
-            placeholder="https://api.lawarnaaree.com.np"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            className="w-full rounded-xl px-4 py-3 font-mono text-sm outline-none"
-            style={{
-              background: "var(--surface-raised)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-subtle)" }}>
-            API Key
-          </label>
-          <div className="flex gap-2">
-            <input
-              type={showKey ? "text" : "password"}
-              placeholder="Paste your API key"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              className="min-w-0 flex-1 rounded-xl px-4 py-3 font-mono text-sm outline-none"
-              style={{
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-            />
-            <button
-              onClick={() => setShowKey((v) => !v)}
-              className="shrink-0 rounded-xl px-3 py-3"
-              style={{
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text-subtle)",
-              }}
-            >
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>
-            {error}
-          </p>
-        )}
-
-        <button
-          onClick={handleSaveAndConnect}
-          disabled={saving || !urlInput.trim() || !keyInput.trim()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
-          style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
-        >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Cloud size={16} />}
-          Connect
-        </button>
-      </div>
-    );
-  }
-
-  const activeFiles = Object.entries(fileProgress).filter(([, p]) => p < 1);
-
-  return (
-    <div>
-      <div
-        className="mb-4 flex items-center gap-3 rounded-xl p-4"
-        style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
-      >
-        <Cloud size={20} style={{ color: "var(--gold)", flexShrink: 0 }} />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-            Connected to cloud
-          </p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {lastSyncedAt
-              ? `Last pulled ${new Date(lastSyncedAt).toLocaleString()}`
-              : "Never pulled"}
-          </p>
-        </div>
-        <button
-          onClick={() => setConfigured(false)}
-          className="shrink-0 text-xs underline"
-          style={{ color: "var(--text-subtle)" }}
-        >
-          Change
-        </button>
-      </div>
-
-      {pulling && (
-        <div className="mb-4">
-          <div className="mb-1 flex items-center justify-between">
-            <span
-              className="flex items-center gap-1.5 text-xs"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <Loader2 size={11} className="animate-spin" />
-              Downloading…
-            </span>
-            <span className="text-xs tabular-nums" style={{ color: "var(--text-subtle)" }}>
-              {Math.round(pullProgress * 100)}%
-            </span>
-          </div>
-          <div
-            className="h-1 overflow-hidden rounded-full"
-            style={{ background: "var(--overlay)" }}
-          >
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${pullProgress * 100}%`, background: "var(--gold)" }}
-            />
-          </div>
-          {activeFiles.length > 0 && (
-            <div className="mt-2 flex flex-col gap-1">
-              {activeFiles.slice(0, 3).map(([hash, p]) => (
-                <div key={hash} className="flex items-center gap-2">
-                  <div
-                    className="h-0.5 flex-1 overflow-hidden rounded-full"
-                    style={{ background: "var(--overlay)" }}
-                  >
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${p * 100}%`, background: "var(--gold)", opacity: 0.6 }}
-                    />
-                  </div>
-                  <span
-                    className="w-8 text-right text-[10px] tabular-nums"
-                    style={{ color: "var(--text-subtle)" }}
-                  >
-                    {Math.round(p * 100)}%
-                  </span>
-                </div>
-              ))}
+              <button
+                onClick={() => pullMutation.mutate()}
+                disabled={!cloudStatus?.isConfigured || pullMutation.isPending}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: cloudStatus?.isConfigured ? 'pointer' : 'not-allowed',
+                  background: 'var(--border)',
+                  color: 'var(--text)',
+                  opacity: (!cloudStatus?.isConfigured || pullMutation.isPending) ? 0.5 : 1,
+                  transition: 'opacity 0.15s',
+                }}
+              >
+                <ArrowDownToLine size={14} />
+                {pullMutation.isPending ? 'Pulling…' : 'Pull'}
+              </button>
             </div>
-          )}
-        </div>
-      )}
 
-      {pullResult && !pulling && (
-        <div className="mb-4 rounded-xl px-4 py-3" style={{ background: "var(--surface-raised)" }}>
-          <p className="text-sm" style={{ color: "var(--text)" }}>
-            {pullResult.added} new tracks · {pullResult.skipped} already downloaded
-            {pullResult.errors > 0 && ` · ${pullResult.errors} errors`}
-          </p>
-        </div>
-      )}
-
-      {error && (
-        <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>
-          {error}
-        </p>
-      )}
-
-      <button
-        onClick={handlePull}
-        disabled={pulling}
-        className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
-        style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
-      >
-        {pulling ? (
-          <>
-            <Loader2 size={16} className="animate-spin" /> Downloading…
-          </>
-        ) : (
-          <>
-            <CloudDownload size={16} /> Pull from Cloud
-          </>
+            {(syncAllMutation.isSuccess || pullMutation.isSuccess) && (
+              <p style={{ fontSize: '13px', color: 'var(--green)', marginTop: '12px' }}>✓ Done</p>
+            )}
+          </Card>
         )}
-      </button>
-    </div>
-  );
-}
 
-export default function Sync() {
-  const { isPaired, setPaired } = useLanSyncStore();
-  const [tab, setTab] = useState<"wifi" | "cloud">("wifi");
+        {tab === 'lan' && (
+          <Card>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginBottom: '2px' }}>
+                  WiFi Sync
+                </h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>
+                  {lanStore.isConnected
+                    ? `Connected to ${lanStore.serverName ?? lanStore.serverUrl}`
+                    : 'Not paired with any desktop'}
+                </p>
+              </div>
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: lanStore.isConnected ? 'var(--green)' : 'var(--text-3)',
+                }}
+              />
+            </div>
 
-  return (
-    <div className="h-full overflow-auto">
-      <div className="mx-auto max-w-lg px-4 py-6">
-        <h1 className="mb-2 text-2xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
-          Library Sync
-        </h1>
-        <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
-          Get your music onto this iPhone.
-        </p>
+            {lanStore.isSyncing && lanStore.fileProgress && (
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-2)', marginBottom: '8px' }}>
+                  Syncing: {lanStore.fileProgress.title}
+                </p>
+                <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      borderRadius: '2px',
+                      background: 'var(--accent)',
+                      width: `${Math.round((lanStore.fileProgress.bytesReceived / lanStore.fileProgress.totalBytes) * 100)}%`,
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
-        {/* Tab bar */}
-        <div
-          className="mb-5 flex rounded-xl p-1"
-          style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
-        >
-          {(["wifi", "cloud"] as const).map((t) => (
+            {lanStore.syncProgress && !lanStore.isSyncing && (
+              <p style={{ fontSize: '13px', color: 'var(--green)', marginBottom: '12px' }}>
+                ✓ {lanStore.syncProgress.synced} synced, {lanStore.syncProgress.skipped} skipped
+                {lanStore.syncProgress.errors > 0 && `, ${lanStore.syncProgress.errors} errors`}
+              </p>
+            )}
+
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all"
+              onClick={() => lanSyncMutation.mutate()}
+              disabled={!lanStore.isConnected || lanStore.isSyncing}
               style={{
-                background: tab === t ? "var(--gold)" : "transparent",
-                color: tab === t ? "var(--text-on-gold)" : "var(--text-subtle)",
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 16px',
+                borderRadius: '10px',
+                fontSize: '14px',
+                fontWeight: 500,
+                border: 'none',
+                cursor: lanStore.isConnected ? 'pointer' : 'not-allowed',
+                background: 'var(--accent)',
+                color: '#fff',
+                opacity: (!lanStore.isConnected || lanStore.isSyncing) ? 0.5 : 1,
               }}
             >
-              {t === "wifi" ? <Wifi size={14} /> : <Cloud size={14} />}
-              {t === "wifi" ? "WiFi (LAN)" : "Cloud"}
+              <RefreshCw size={14} style={{ animation: lanStore.isSyncing ? 'spin 1s linear infinite' : 'none' }} />
+              {lanStore.isSyncing ? 'Syncing…' : 'Sync Now'}
             </button>
-          ))}
-        </div>
-
-        <div
-          className="rounded-2xl p-5"
-          style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          {tab === "wifi" ? (
-            isPaired ? (
-              <SyncStatusPanel />
-            ) : (
-              <>
-                <div className="mb-4 flex items-center gap-2">
-                  <WifiOff size={16} style={{ color: "var(--text-subtle)" }} />
-                  <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                    Not connected
-                  </span>
-                </div>
-                <DiscoveryPanel onPaired={() => setPaired("", "Desktop")} />
-              </>
-            )
-          ) : (
-            <CloudSyncPanel />
-          )}
-        </div>
+          </Card>
+        )}
       </div>
     </div>
-  );
+  )
 }

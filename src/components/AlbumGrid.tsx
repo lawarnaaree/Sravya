@@ -1,113 +1,82 @@
-import { Play, Disc3 } from "lucide-react";
-import type { Album, Track } from "@/api";
-import { api } from "@/api";
-import { coverUrl } from "@/lib/utils";
+import { Play } from 'lucide-react'
+import { coverUrl } from '@/lib/utils'
+import type { Track } from '@/api'
+import { usePlayback } from '@/hooks/usePlayback'
 
-interface AlbumGridProps {
-  albums: Album[];
-  tracks: Track[];
+interface Album {
+  name: string
+  artist?: string
+  cover_hash?: string
+  tracks: Track[]
 }
 
-export default function AlbumGrid({ albums, tracks }: AlbumGridProps) {
+interface Props {
+  albums: Album[]
+}
+
+export function AlbumGrid({ albums }: Props) {
+  const { play } = usePlayback()
+
   if (albums.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
-        <Disc3 size={40} style={{ color: "var(--text-subtle)" }} />
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No albums yet
-        </p>
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[var(--text-3)] text-sm">No albums</p>
       </div>
-    );
+    )
   }
 
-  const playAlbum = (album: Album) => {
-    const albumTracks = tracks
-      .filter(
-        (t) =>
-          t.album.toLowerCase() === album.title.toLowerCase() &&
-          t.artist.toLowerCase() === album.artist.toLowerCase()
-      )
-      .sort((a, b) => (a.trackNo ?? 99) - (b.trackNo ?? 99));
-
-    if (albumTracks.length > 0) {
-      api.playback.command({
-        type: "playQueue",
-        track_ids: albumTracks.map((t) => t.id),
-        start_index: 0,
-      });
-    }
-  };
-
   return (
-    <div className="overflow-auto p-6">
-      <div
-        className="grid gap-4"
-        style={{
-          gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
-        }}
-      >
-        {albums.map((album) => (
-          <AlbumCard key={album.id} album={album} onPlay={() => playAlbum(album)} />
-        ))}
+    <div className="flex-1 overflow-auto p-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
+        {albums.map(album => {
+          const cover = coverUrl(album.cover_hash)
+          const first = album.tracks[0]
+
+          return (
+            <div
+              key={`${album.name}-${album.artist}`}
+              className="group cursor-pointer"
+              onDoubleClick={() => first && play(first.id)}
+            >
+              <div
+                className="relative aspect-square rounded-2xl overflow-hidden mb-2"
+                style={{ boxShadow: 'var(--shadow-card)' }}
+              >
+                {cover ? (
+                  <img src={cover} alt={album.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-4xl"
+                    style={{ background: 'var(--surface-raised)' }}
+                  >
+                    ♪
+                  </div>
+                )}
+
+                <button
+                  onClick={() => first && play(first.id)}
+                  className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ background: 'rgba(0,0,0,0.3)' }}
+                >
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ background: 'var(--accent)' }}
+                  >
+                    <Play size={20} fill="white" color="white" />
+                  </div>
+                </button>
+              </div>
+
+              <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text)' }}>
+                {album.name}
+              </p>
+              <p className="text-[12px] truncate" style={{ color: 'var(--text-2)' }}>
+                {album.artist ?? 'Unknown artist'}
+              </p>
+            </div>
+          )
+        })}
       </div>
     </div>
-  );
-}
-
-function AlbumCard({ album, onPlay }: { album: Album; onPlay: () => void }) {
-  const img = coverUrl(album.coverPath);
-
-  return (
-    <div
-      className="group card-lift cursor-pointer rounded-lg p-3"
-      style={{ background: "var(--surface-raised)" }}
-      onDoubleClick={onPlay}
-    >
-      {/* Cover art */}
-      <div
-        className="relative aspect-square w-full overflow-hidden rounded-lg"
-        style={{ background: "var(--overlay)" }}
-      >
-        {img ? (
-          <img src={img} alt={album.title} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Disc3 size={40} style={{ color: "var(--text-subtle)" }} />
-          </div>
-        )}
-
-        {/* Hover play button — bottom right */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPlay();
-          }}
-          className="play-overlay absolute right-2 bottom-2 flex h-10 w-10 items-center justify-center rounded-full transition-transform duration-75 hover:scale-110 active:scale-90"
-          style={{
-            background: "var(--gold)",
-            color: "var(--text-on-gold)",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-          }}
-          aria-label={`Play ${album.title}`}
-        >
-          <Play size={16} fill="currentColor" style={{ marginLeft: 2 }} />
-        </button>
-      </div>
-
-      {/* Info */}
-      <div className="mt-2 min-w-0">
-        <p
-          className="truncate text-sm font-semibold"
-          style={{ color: "var(--text)" }}
-          title={album.title}
-        >
-          {album.title}
-        </p>
-        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }} title={album.artist}>
-          {album.artist}
-          {album.year ? ` · ${album.year}` : ""}
-        </p>
-      </div>
-    </div>
-  );
+  )
 }

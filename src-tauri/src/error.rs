@@ -1,44 +1,57 @@
 use serde::Serialize;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Serialize)]
+#[serde(tag = "kind", content = "message")]
 pub enum AppError {
-    #[error("database error: {0}")]
-    Db(#[from] sqlx::Error),
-
-    #[error("migration error: {0}")]
-    Migration(#[from] sqlx::migrate::MigrateError),
-
-    #[error("audio error: {0}")]
+    #[error("Database error: {0}")]
+    Db(String),
+    #[error("Migration error: {0}")]
+    Migration(String),
+    #[error("Audio error: {0}")]
     Audio(String),
-
-    #[error("io error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("tag read error: {0}")]
+    #[error("IO error: {0}")]
+    Io(String),
+    #[error("Tag error: {0}")]
     Tag(String),
-
-    #[error("import refused: {0}")]
+    #[error("Import refused: {0}")]
     ImportRefused(String),
-
-    #[error("crypto error: {0}")]
+    #[error("Crypto error: {0}")]
     Crypto(String),
-
-    #[error("keychain error: {0}")]
+    #[error("Keychain error: {0}")]
     Keychain(String),
-
-    #[error("http error: {0}")]
-    Http(#[from] reqwest::Error),
-
+    #[error("HTTP error: {0}")]
+    Http(String),
     #[error("{0}")]
-    Other(#[from] anyhow::Error),
+    Other(String),
 }
 
-// Tauri requires commands to return serializable errors.
-impl Serialize for AppError {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        s.serialize_str(&self.to_string())
+impl From<sqlx::Error> for AppError {
+    fn from(e: sqlx::Error) -> Self {
+        AppError::Db(e.to_string())
     }
 }
 
-pub type Result<T> = std::result::Result<T, AppError>;
+impl From<sqlx::migrate::MigrateError> for AppError {
+    fn from(e: sqlx::migrate::MigrateError) -> Self {
+        AppError::Migration(e.to_string())
+    }
+}
+
+impl From<std::io::Error> for AppError {
+    fn from(e: std::io::Error) -> Self {
+        AppError::Io(e.to_string())
+    }
+}
+
+impl From<reqwest::Error> for AppError {
+    fn from(e: reqwest::Error) -> Self {
+        AppError::Http(e.to_string())
+    }
+}
+
+impl From<anyhow::Error> for AppError {
+    fn from(e: anyhow::Error) -> Self {
+        AppError::Other(e.to_string())
+    }
+}

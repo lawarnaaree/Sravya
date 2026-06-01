@@ -1,35 +1,43 @@
-import { listen } from "@tauri-apps/api/event";
-import { useEffect } from "react";
-import { useLanSyncStore } from "@/state/lanSync";
+import { useEffect } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { useLanSyncStore } from '@/state/lanSync'
 
 export function useLanSyncEvents() {
-  const { setSyncing, setFileProgress } = useLanSyncStore();
+  const store = useLanSyncStore()
 
   useEffect(() => {
-    const unlisten: Array<() => void> = [];
+    const unlisteners = [
+      listen<{ peer_id: string }>('lan-sync-started', () => {
+        store.setSyncing(true)
+      }),
 
-    listen<void>("lan-sync-started", () => {
-      setSyncing(true, 0);
-    }).then((u) => unlisten.push(u));
+      listen<{ track_id: string; title: string; bytes_received: number; total_bytes: number }>(
+        'lan-sync-file-progress',
+        ({ payload }) => {
+          store.setFileProgress({
+            trackId: payload.track_id,
+            title: payload.title,
+            bytesReceived: payload.bytes_received,
+            totalBytes: payload.total_bytes,
+          })
+        },
+      ),
 
-    listen<{ current: number; total: number; progress: number }>("lan-sync-progress", (e) => {
-      setSyncing(true, e.payload.progress);
-    }).then((u) => unlisten.push(u));
+      listen<{ synced: number; skipped: number; errors: number }>('lan-sync-complete', ({ payload }) => {
+        store.setSyncing(false)
+        store.setSyncProgress(payload)
+        store.setLastSyncedAt(new Date().toISOString())
+        store.setFileProgress(null)
+      }),
 
-    listen<{ added: number; skipped: number; errors: number; error?: string }>(
-      "lan-sync-complete",
-      () => {
-        setSyncing(false, 1);
-      }
-    ).then((u) => unlisten.push(u));
+      listen<{ error: string }>('lan-sync-failed', () => {
+        store.setSyncing(false)
+        store.setFileProgress(null)
+      }),
+    ]
 
-    listen<{ hash: string; downloaded: number; total: number; progress: number }>(
-      "lan-sync-file-progress",
-      (e) => {
-        setFileProgress(e.payload.hash, e.payload.progress);
-      }
-    ).then((u) => unlisten.push(u));
-
-    return () => unlisten.forEach((u) => u());
-  }, [setSyncing, setFileProgress]);
+    return () => {
+      unlisteners.forEach(p => p.then(fn => fn()))
+    }
+  }, [])
 }

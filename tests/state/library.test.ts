@@ -1,59 +1,57 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { useLibraryStore } from "@/state/library";
-import type { LibraryStats } from "@/api";
+import { describe, it, expect, beforeEach } from 'vitest'
+import { useLibraryStore } from '@/state/library'
+import type { Track } from '@/api'
 
-const MOCK_STATS: LibraryStats = {
-  trackCount: 120,
-  albumCount: 14,
-  artistCount: 8,
-  totalDurationMs: 345600000,
-  watchedFolders: ["/music"],
-};
+const mockTracks: Track[] = [
+  {
+    id: '1',
+    title: 'Alpha',
+    artist: 'Artist A',
+    album: 'Album 1',
+    file_hash: 'hash1',
+    file_ext: 'mp3',
+    file_path: '/1.mp3',
+    added_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: '2',
+    title: 'Beta',
+    artist: 'Artist B',
+    album: 'Album 2',
+    file_hash: 'hash2',
+    file_ext: 'flac',
+    file_path: '/2.flac',
+    added_at: '2024-01-02T00:00:00Z',
+  },
+]
 
 beforeEach(() => {
-  useLibraryStore.setState({ stats: null, isScanning: false, scanProgress: 0 });
-});
+  useLibraryStore.setState({ tracks: [], isLoading: false, filterQuery: '', sortKey: 'artist', sortDir: 'asc' })
+})
 
-describe("useLibraryStore — initial state", () => {
-  it("has no stats", () => {
-    expect(useLibraryStore.getState().stats).toBeNull();
-  });
+describe('useLibraryStore', () => {
+  it('starts empty', () => {
+    expect(useLibraryStore.getState().tracks).toHaveLength(0)
+  })
 
-  it("is not scanning", () => {
-    expect(useLibraryStore.getState().isScanning).toBe(false);
-  });
+  it('sets tracks', () => {
+    useLibraryStore.getState().setTracks(mockTracks)
+    expect(useLibraryStore.getState().tracks).toHaveLength(2)
+  })
 
-  it("has zero scan progress", () => {
-    expect(useLibraryStore.getState().scanProgress).toBe(0);
-  });
-});
+  it('sets loading state', () => {
+    useLibraryStore.getState().setLoading(true)
+    expect(useLibraryStore.getState().isLoading).toBe(true)
+  })
 
-describe("useLibraryStore — setStats", () => {
-  it("stores library stats", () => {
-    useLibraryStore.getState().setStats(MOCK_STATS);
-    const s = useLibraryStore.getState();
-    expect(s.stats?.trackCount).toBe(120);
-    expect(s.stats?.albumCount).toBe(14);
-    expect(s.stats?.watchedFolders).toEqual(["/music"]);
-  });
-});
+  it('sets filter query', () => {
+    useLibraryStore.getState().setFilter('Alpha')
+    expect(useLibraryStore.getState().filterQuery).toBe('Alpha')
+  })
 
-describe("useLibraryStore — setScanning", () => {
-  it("sets scanning to true with progress", () => {
-    useLibraryStore.getState().setScanning(true, 42);
-    const s = useLibraryStore.getState();
-    expect(s.isScanning).toBe(true);
-    expect(s.scanProgress).toBe(42);
-  });
-
-  it("defaults progress to 0 when not provided", () => {
-    useLibraryStore.getState().setScanning(true);
-    expect(useLibraryStore.getState().scanProgress).toBe(0);
-  });
-
-  it("sets scanning to false", () => {
-    useLibraryStore.getState().setScanning(true, 100);
-    useLibraryStore.getState().setScanning(false);
-    expect(useLibraryStore.getState().isScanning).toBe(false);
-  });
-});
+  it('sets sort', () => {
+    useLibraryStore.getState().setSort('title', 'desc')
+    expect(useLibraryStore.getState().sortKey).toBe('title')
+    expect(useLibraryStore.getState().sortDir).toBe('desc')
+  })
+})

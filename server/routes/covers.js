@@ -1,72 +1,75 @@
-const { Router } = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
+'use strict'
 
-const router = Router();
+const { Router } = require('express')
+const multer = require('multer')
+const crypto = require('crypto')
+const path = require('path')
+const fs = require('fs')
 
-let coversDir;
-let upload;
+const COVER_EXTS = ['jpg', 'jpeg', 'png', 'webp']
 
-function init(dataDir) {
-  coversDir = path.join(dataDir, 'uploads', 'covers');
-  fs.mkdirSync(coversDir, { recursive: true });
+function createRouter(_db, dataDir) {
+  const router = Router()
+  const coversDir = path.join(dataDir, 'uploads', 'covers')
+  const tmpDir = path.join(dataDir, 'tmp')
+  fs.mkdirSync(coversDir, { recursive: true })
+  fs.mkdirSync(tmpDir, { recursive: true })
 
   const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, coversDir),
-    filename: (_req, _file, cb) => {
-      cb(null, `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`);
-    },
-  });
+    destination: tmpDir,
+    filename: (_req, _file, cb) => cb(null, `cover_${Date.now()}_${Math.random().toString(36).slice(2)}`),
+  })
+  const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } })
 
-  upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10 MB max
-}
-
-// GET /api/covers/:hash
-router.get('/:hash', (req, res) => {
-  const hash = req.params.hash;
-  // Try common image extensions
-  for (const ext of ['jpg', 'jpeg', 'png', 'webp']) {
-    const filePath = path.join(coversDir, `${hash}.${ext}`);
-    if (fs.existsSync(filePath)) {
-      return res.sendFile(filePath);
-    }
+  function sha256File(filePath) {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256')
+      const stream = fs.createReadStream(filePath)
+      stream.on('data', chunk => hash.update(chunk))
+      stream.on('end', () => resolve(hash.digest('hex')))
+      stream.on('error', reject)
+    })
   }
-  res.status(404).json({ error: 'Not found' });
-});
 
-// POST /api/covers — upload cover art
-// Returns { cover_hash } — idempotent by content hash
-router.post('/', (req, res) => {
-  if (!upload) return res.status(500).json({ error: 'Server not initialized' });
-
-  upload.single('cover')(req, res, async (err) => {
-    if (err) return res.status(400).json({ error: err.message });
-    if (!req.file) return res.status(400).json({ error: 'No cover file' });
-
-    const hash = await computeFileHash(req.file.path);
-    const ext = (path.extname(req.file.originalname || '').slice(1) || 'jpg').toLowerCase();
-    const finalPath = path.join(coversDir, `${hash}.${ext}`);
-
-    if (fs.existsSync(finalPath)) {
-      fs.unlinkSync(req.file.path);
-    } else {
-      fs.renameSync(req.file.path, finalPath);
+  router.get('/:hash', (req, res) => {
+    for (const ext of COVER_EXTS) {
+      const filePath = path.join(coversDir, `${req.params.hash}.${ext}`)
+      if (fs.existsSync(filePath)) {
+        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : 'image/webp'
+        res.setHeader('Content-Type', mime)
+        res.setHeader('Cache-Control', 'public, max-age=31536000')
+        return fs.createReadStream(filePath).pipe(res)
+      }
     }
+    res.status(404).json({ error: 'Not found' })
+  })
 
-    res.json({ cover_hash: hash });
-  });
-});
+  router.post('/', upload.single('cover'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Missing cover file' })
 
-function computeFileHash(filePath) {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    stream.on('data', (d) => hash.update(d));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
-  });
+    const tmpFile = req.file.path
+    const origName = req.file.originalname
+    const ext = path.extname(origName).slice(1).toLowerCase() || 'jpg'
+
+    try {
+      const hash = await sha256File(tmpFile)
+      const finalPath = path.join(coversDir, `${hash}.${ext}`)
+
+      if (fs.existsSync(finalPath)) {
+        fs.unlink(tmpFile, () => {})
+        return res.json({ hash })
+      }
+
+      fs.renameSync(tmpFile, finalPath)
+      res.json({ hash })
+    } catch (err) {
+      fs.unlink(tmpFile, () => {})
+      console.error('Cover upload error:', err)
+      res.status(500).json({ error: 'Internal server error' })
+    }
+  })
+
+  return router
 }
 
-module.exports = { router, init };
+module.exports = { createRouter }

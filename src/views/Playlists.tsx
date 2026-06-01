@@ -1,151 +1,159 @@
-import { useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Music2, X } from "lucide-react";
-import { api } from "@/api";
-import { formatDuration } from "@/lib/utils";
-import TrackList from "@/components/TrackList";
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Plus, ListMusic } from 'lucide-react'
+import { api } from '@/api'
+import { TrackList } from '@/components/TrackList'
 
-function CreateDialog({ onClose }: { onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-
-  const create = useMutation({
-    mutationFn: () => api.playlists.create(name.trim()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["playlists"] });
-      onClose();
-    },
-  });
-
-  return (
-    <Dialog.Portal>
-      <Dialog.Overlay
-        className="animate-fade-in fixed inset-0 z-40"
-        style={{ background: "rgba(9,9,15,0.7)" }}
-      />
-      <Dialog.Content
-        className="animate-slide-up fixed top-1/2 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl p-6 shadow-2xl"
-        style={{
-          background: "var(--surface-raised)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <Dialog.Title className="text-base font-semibold" style={{ color: "var(--text)" }}>
-            New Playlist
-          </Dialog.Title>
-          <Dialog.Close
-            className="rounded p-1 transition-colors"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <X size={16} />
-          </Dialog.Close>
-        </div>
-
-        <input
-          autoFocus
-          type="text"
-          placeholder="Playlist name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && name.trim()) create.mutate();
-          }}
-          className="mb-4 w-full rounded-lg px-3 py-2 text-sm outline-none"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
-        />
-
-        <div className="flex justify-end gap-2">
-          <Dialog.Close
-            className="rounded-lg px-4 py-2 text-sm transition-colors"
-            style={{
-              background: "var(--overlay)",
-              color: "var(--text-muted)",
-            }}
-          >
-            Cancel
-          </Dialog.Close>
-          <button
-            disabled={!name.trim() || create.isPending}
-            onClick={() => create.mutate()}
-            className="rounded-lg px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-40"
-            style={{
-              background: "var(--gold)",
-              color: "var(--text-on-gold)",
-            }}
-          >
-            Create
-          </button>
-        </div>
-      </Dialog.Content>
-    </Dialog.Portal>
-  );
-}
-
-export default function Playlists() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-
-  const selectedId = searchParams.get("id");
-  const createOpen = searchParams.get("create") === "true";
-
-  function handleCreateOpenChange(open: boolean) {
-    if (!open) {
-      navigate(selectedId ? `/playlists?id=${selectedId}` : "/playlists", { replace: true });
-    }
-  }
+export function Playlists() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = searchParams.get('id')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newName, setNewName] = useState('')
+  const queryClient = useQueryClient()
 
   const { data: playlists = [] } = useQuery({
-    queryKey: ["playlists"],
-    queryFn: () => api.playlists.list(),
-  });
+    queryKey: ['playlists'],
+    queryFn: api.playlists.list,
+  })
 
-  const { data: playlistTracks = [] } = useQuery({
-    queryKey: ["playlist-tracks", selectedId],
-    queryFn: () => api.library.playlistTracks(selectedId!),
+  const { data: tracks = [] } = useQuery({
+    queryKey: ['playlist-tracks', selectedId],
+    queryFn: () => api.playlists.tracks(selectedId!),
     enabled: !!selectedId,
-  });
+  })
 
-  const selectedPlaylist = playlists.find((p) => p.id === selectedId);
+  const createMutation = useMutation({
+    mutationFn: (name: string) => api.playlists.create(name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      setCreateOpen(false)
+      setNewName('')
+    },
+  })
+
+  const selected = playlists.find(p => p.id === selectedId)
 
   return (
-    <div className="flex h-full flex-col">
-      <Dialog.Root open={createOpen} onOpenChange={handleCreateOpenChange}>
-        <CreateDialog onClose={() => handleCreateOpenChange(false)} />
-      </Dialog.Root>
+    <div className="flex h-full">
+      {/* Left panel */}
+      <div
+        className="w-[220px] shrink-0 flex flex-col border-r"
+        style={{ borderColor: 'var(--separator)' }}
+      >
+        <div className="flex items-center justify-between px-4 pt-6 pb-3">
+          <h2 style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.2px' }}>
+            Playlists
+          </h2>
+          <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
+            <Dialog.Trigger asChild>
+              <button
+                className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: 'var(--border)', color: 'var(--text-2)' }}
+              >
+                <Plus size={14} />
+              </button>
+            </Dialog.Trigger>
 
-      {selectedPlaylist ? (
-        <>
-          <div
-            className="shrink-0 px-6 py-4"
-            style={{ borderBottom: "1px solid var(--border-subtle)" }}
-          >
-            <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
-              {selectedPlaylist.name}
-            </h1>
-            <p className="mt-0.5 text-xs" style={{ color: "var(--text-subtle)" }}>
-              {selectedPlaylist.trackCount} tracks ·{" "}
-              {formatDuration(selectedPlaylist.totalDurationMs)}
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 z-40" style={{ background: 'var(--overlay)' }} />
+              <Dialog.Content
+                className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-80 p-6 rounded-2xl"
+                style={{ background: 'var(--surface-raised)', boxShadow: 'var(--shadow-modal)' }}
+              >
+                <Dialog.Title className="text-[17px] font-semibold mb-4" style={{ color: 'var(--text)' }}>
+                  New Playlist
+                </Dialog.Title>
+
+                <input
+                  autoFocus
+                  type="text"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="Playlist name"
+                  className="w-full px-3 py-2 rounded-xl text-[14px] outline-none mb-4"
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)',
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newName.trim()) {
+                      createMutation.mutate(newName.trim())
+                    }
+                  }}
+                />
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => createMutation.mutate(newName.trim())}
+                    disabled={!newName.trim()}
+                    className="flex-1 py-2 rounded-xl text-[14px] font-medium transition-colors disabled:opacity-40"
+                    style={{ background: 'var(--accent)', color: '#fff' }}
+                  >
+                    Create
+                  </button>
+                  <Dialog.Close asChild>
+                    <button
+                      className="flex-1 py-2 rounded-xl text-[14px] font-medium"
+                      style={{ background: 'var(--border)', color: 'var(--text)' }}
+                    >
+                      Cancel
+                    </button>
+                  </Dialog.Close>
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+        </div>
+
+        <div className="flex-1 overflow-auto px-2 pb-4 space-y-0.5">
+          {playlists.length === 0 ? (
+            <p className="text-center text-[12px] mt-8" style={{ color: 'var(--text-3)' }}>
+              No playlists yet
+            </p>
+          ) : (
+            playlists.map(pl => (
+              <button
+                key={pl.id}
+                onClick={() => setSearchParams({ id: pl.id })}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-left transition-colors"
+                style={{
+                  background: selectedId === pl.id ? 'var(--accent-muted)' : 'transparent',
+                  color: selectedId === pl.id ? 'var(--accent)' : 'var(--text)',
+                }}
+              >
+                <ListMusic size={14} className="shrink-0" />
+                <span className="text-[13px] truncate">{pl.name}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Right panel */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {selected ? (
+          <>
+            <div className="px-6 pt-6 pb-4 shrink-0">
+              <h1 className="text-[22px] font-semibold" style={{ color: 'var(--text)' }}>
+                {selected.name}
+              </h1>
+              <p className="text-[13px] mt-1" style={{ color: 'var(--text-2)' }}>
+                {tracks.length} tracks
+              </p>
+            </div>
+            <TrackList tracks={tracks} />
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <p style={{ color: 'var(--text-3)' }} className="text-sm">
+              Select a playlist
             </p>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <TrackList tracks={playlistTracks} showAlbum />
-          </div>
-        </>
-      ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-3">
-          <Music2 size={40} style={{ color: "var(--text-subtle)" }} />
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Select a playlist to view its tracks
-          </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  );
+  )
 }

@@ -1,53 +1,42 @@
-import { create } from "zustand";
+import { create } from 'zustand'
 
-export interface DiscoveredServer {
-  name: string;
-  host: string;
-  port: number;
-  address: string;
+interface FileProgress {
+  trackId: string
+  title: string
+  bytesReceived: number
+  totalBytes: number
 }
 
-export interface PairedDevice {
-  id: string;
-  name: string;
-  platform: string;
-  pairedAt: string;
-  lastSeenAt?: string;
+interface LanSyncStore {
+  isConnected: boolean
+  serverUrl: string | null
+  serverName: string | null
+  isSyncing: boolean
+  syncProgress: { synced: number; skipped: number; errors: number } | null
+  lastSyncedAt: string | null
+  fileProgress: FileProgress | null
+
+  setPaired: (url: string, name?: string) => void
+  setUnpaired: () => void
+  setSyncing: (syncing: boolean) => void
+  setSyncProgress: (progress: { synced: number; skipped: number; errors: number }) => void
+  setLastSyncedAt: (ts: string) => void
+  setFileProgress: (fp: FileProgress | null) => void
 }
 
-interface LanSyncState {
-  isPaired: boolean;
-  serverUrl: string | null;
-  serverName: string | null;
-  isSyncing: boolean;
-  syncProgress: number;
-  lastSyncedAt: string | null;
-  discoveredServers: DiscoveredServer[];
-  fileProgress: Record<string, number>;
-
-  setPaired: (serverUrl: string, serverName: string) => void;
-  setUnpaired: () => void;
-  setSyncing: (syncing: boolean, progress: number) => void;
-  setLastSyncedAt: (ts: string | null) => void;
-  setDiscoveredServers: (servers: DiscoveredServer[]) => void;
-  setFileProgress: (hash: string, progress: number) => void;
-}
-
-export const useLanSyncStore = create<LanSyncState>((set) => ({
-  isPaired: false,
+export const useLanSyncStore = create<LanSyncStore>(set => ({
+  isConnected: false,
   serverUrl: null,
   serverName: null,
   isSyncing: false,
-  syncProgress: 0,
+  syncProgress: null,
   lastSyncedAt: null,
-  discoveredServers: [],
-  fileProgress: {},
+  fileProgress: null,
 
-  setPaired: (serverUrl, serverName) => set({ isPaired: true, serverUrl, serverName }),
-  setUnpaired: () => set({ isPaired: false, serverUrl: null, serverName: null }),
-  setSyncing: (isSyncing, syncProgress) => set({ isSyncing, syncProgress }),
-  setLastSyncedAt: (lastSyncedAt) => set({ lastSyncedAt }),
-  setDiscoveredServers: (discoveredServers) => set({ discoveredServers }),
-  setFileProgress: (hash, progress) =>
-    set((s) => ({ fileProgress: { ...s.fileProgress, [hash]: progress } })),
-}));
+  setPaired: (url, name) => set({ isConnected: true, serverUrl: url, serverName: name ?? null }),
+  setUnpaired: () => set({ isConnected: false, serverUrl: null, serverName: null }),
+  setSyncing: syncing => set({ isSyncing: syncing }),
+  setSyncProgress: progress => set({ syncProgress: progress }),
+  setLastSyncedAt: ts => set({ lastSyncedAt: ts }),
+  setFileProgress: fp => set({ fileProgress: fp }),
+}))

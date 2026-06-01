@@ -1,12 +1,13 @@
 {
+  "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
-  "description": "Mobile-only capabilities (iOS)",
-  "platforms": ["iOS"],
+  "description": "iOS capabilities",
   "windows": ["main"],
+  "platforms": ["iOS"],
   "permissions": [
+    "core:default",
     "barcode-scanner:allow-scan",
     "barcode-scanner:allow-cancel",
-    "barcode-scanner:allow-check-permissions",
-    "barcode-scanner:allow-request-permissions"
+    "os:default"
   ]
 }

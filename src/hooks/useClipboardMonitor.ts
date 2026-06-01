@@ -1,53 +1,38 @@
-import { useEffect, useRef } from "react";
-import { readText } from "@tauri-apps/plugin-clipboard-manager";
-import { useDownloadQueueStore } from "@/state/downloadQueue";
-import { usePlatform } from "@/hooks/usePlatform";
+import { useEffect, useRef } from 'react'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
+import { useDownloadQueueStore } from '@/state/downloadQueue'
+import { usePlatform } from './usePlatform'
 
-const YOUTUBE_RE = /^https?:\/\/(www\.)?(youtube\.com\/(watch|shorts|live)|youtu\.be\/)/;
-
-const POLL_MS = 1500;
+const YT_PATTERN = /^https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/)/
 
 export function useClipboardMonitor() {
-  const lastSeen = useRef<string | null>(null);
-  const setPendingUrl = useDownloadQueueStore((s) => s.setPendingUrl);
-  const pendingUrl = useDownloadQueueStore((s) => s.pendingUrl);
-  const platform = usePlatform();
+  const platform = usePlatform()
+  const { setPendingUrl, pendingUrl } = useDownloadQueueStore()
+  const lastClipRef = useRef<string>('')
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const check = async () => {
+    try {
+      const text = await readText()
+      if (!text || text === lastClipRef.current) return
+      lastClipRef.current = text
+      if (YT_PATTERN.test(text) && !pendingUrl) {
+        setPendingUrl(text)
+      }
+    } catch {
+      // Clipboard read may fail silently
+    }
+  }
 
   useEffect(() => {
-    let active = true;
-
-    async function check() {
-      if (!active) return;
-      try {
-        const text = await readText();
-        if (text && text !== lastSeen.current && !pendingUrl && YOUTUBE_RE.test(text.trim())) {
-          lastSeen.current = text.trim();
-          setPendingUrl(text.trim());
-        }
-      } catch {
-        // Clipboard empty or permission denied — ignore silently
-      }
-    }
-
-    if (platform === "ios") {
-      // iOS shows a clipboard-read banner on every read — polling is hostile.
-      // Check once on mount, then only when the app returns to the foreground.
-      void check();
-      const onVisible = () => {
-        if (document.visibilityState === "visible") void check();
-      };
-      document.addEventListener("visibilitychange", onVisible);
+    if (platform === 'desktop') {
+      intervalRef.current = setInterval(check, 1500)
       return () => {
-        active = false;
-        document.removeEventListener("visibilitychange", onVisible);
-      };
+        if (intervalRef.current) clearInterval(intervalRef.current)
+      }
+    } else {
+      document.addEventListener('visibilitychange', check)
+      return () => document.removeEventListener('visibilitychange', check)
     }
-
-    // Desktop: poll continuously, no system prompt.
-    const id = setInterval(check, POLL_MS);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, [setPendingUrl, pendingUrl, platform]);
+  }, [platform, pendingUrl])
 }

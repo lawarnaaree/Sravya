@@ -1,44 +1,35 @@
-import { NavLink } from "react-router-dom";
-import { Library, Search, Wifi, Settings } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { NavLink } from 'react-router-dom'
+import { Library, Search, Settings, Wifi } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-const tabs = [
-  { to: "/library", icon: Library, label: "Library" },
-  { to: "/search", icon: Search, label: "Search" },
-  { to: "/sync", icon: Wifi, label: "Sync" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-];
+const TABS = [
+  { to: '/library', icon: Library, label: 'Library' },
+  { to: '/search', icon: Search, label: 'Search' },
+  { to: '/sync', icon: Wifi, label: 'Sync' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
+]
 
-export default function BottomTabBar() {
+export function BottomTabBar() {
   return (
     <nav
-      className="flex shrink-0 items-stretch"
-      style={{
-        background: "var(--surface)",
-        borderTop: "1px solid var(--border-subtle)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
+      className="glass-player flex justify-around items-center h-[60px] border-t shrink-0 px-2"
+      style={{ borderColor: 'var(--separator)' }}
     >
-      {tabs.map(({ to, icon: Icon, label }) => (
+      {TABS.map(({ to, icon: Icon, label }) => (
         <NavLink
           key={to}
           to={to}
           className={({ isActive }) =>
             cn(
-              "flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
-              isActive ? "text-[var(--gold)]" : "text-[var(--text-muted)]"
+              'flex flex-col items-center gap-0.5 px-4 py-1 rounded-xl transition-colors',
+              isActive ? 'text-[var(--accent)]' : 'text-[var(--text-3)]',
             )
           }
-          style={{ minHeight: 56 }}
         >
-          {({ isActive }) => (
-            <>
-              <Icon size={22} strokeWidth={isActive ? 2.2 : 1.8} />
-              {label}
-            </>
-          )}
+          <Icon size={20} />
+          <span className="text-[10px] font-medium">{label}</span>
         </NavLink>
       ))}
     </nav>
-  );
+  )
 }

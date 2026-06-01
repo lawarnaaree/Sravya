@@ -1,16 +1,19 @@
-import { platform } from "@tauri-apps/plugin-os";
-import { useState } from "react";
+import { useEffect, useState } from 'react'
+import { platform } from '@tauri-apps/plugin-os'
 
-type PlatformKind = "desktop" | "ios";
+type Platform = 'desktop' | 'ios'
 
-export function usePlatform(): PlatformKind {
-  const [plat] = useState<PlatformKind>(() => {
+export function usePlatform(): Platform {
+  const [plat, setPlat] = useState<Platform>('desktop')
+
+  useEffect(() => {
     try {
-      const p = platform();
-      return p === "ios" ? "ios" : "desktop";
+      const p = platform()
+      setPlat(p === 'ios' ? 'ios' : 'desktop')
     } catch {
-      return "desktop";
+      // outside Tauri environment
     }
-  });
-  return plat;
+  }, [])
+
+  return plat
 }

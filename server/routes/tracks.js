@@ -1,198 +1,185 @@
-const { Router } = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-const { getDb } = require('../db/database');
+'use strict'
 
-const router = Router();
+const { Router } = require('express')
+const multer = require('multer')
+const crypto = require('crypto')
+const path = require('path')
+const fs = require('fs')
+const { v4: uuidv4 } = require('crypto')
 
-let tracksDir;
-let upload;
+const AUDIO_EXTS = new Set(['mp3', 'm4a', 'flac', 'ogg', 'opus', 'wav', 'aiff'])
+const MIME_MAP = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  flac: 'audio/flac',
+  ogg: 'audio/ogg',
+  opus: 'audio/ogg; codecs=opus',
+  wav: 'audio/wav',
+  aiff: 'audio/aiff',
+}
 
-function init(dataDir) {
-  tracksDir = path.join(dataDir, 'uploads', 'tracks');
-  fs.mkdirSync(tracksDir, { recursive: true });
+function createRouter(db, dataDir) {
+  const router = Router()
+  const tracksDir = path.join(dataDir, 'uploads', 'tracks')
+  const tmpDir = path.join(dataDir, 'tmp')
+  fs.mkdirSync(tracksDir, { recursive: true })
+  fs.mkdirSync(tmpDir, { recursive: true })
 
   const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, tracksDir),
-    filename: (_req, _file, cb) => {
-      // Temp name — renamed to hash after upload
-      cb(null, `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`);
-    },
-  });
-
-  upload = multer({
+    destination: tmpDir,
+    filename: (_req, _file, cb) => cb(null, `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`),
+  })
+  const upload = multer({
     storage,
-    limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB max
-  });
-}
+    limits: { fileSize: 250 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.fieldname === 'audio') {
+        const ext = path.extname(file.originalname).slice(1).toLowerCase()
+        cb(null, AUDIO_EXTS.has(ext))
+      } else {
+        cb(null, true)
+      }
+    },
+  })
 
-// GET /api/tracks
-router.get('/', (req, res) => {
-  const db = getDb();
-  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-  const offset = parseInt(req.query.offset) || 0;
-
-  const tracks = db.prepare(
-    'SELECT * FROM tracks ORDER BY added_at DESC LIMIT ? OFFSET ?'
-  ).all(limit, offset);
-
-  res.json({ tracks, total: db.prepare('SELECT COUNT(*) as c FROM tracks').get().c });
-});
-
-// GET /api/tracks/:id
-router.get('/:id', (req, res) => {
-  const db = getDb();
-  const track = db.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id);
-  if (!track) return res.status(404).json({ error: 'Not found' });
-  res.json(track);
-});
-
-// GET /api/tracks/:id/file — stream audio with range support
-router.get('/:id/file', (req, res) => {
-  const db = getDb();
-  const track = db.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id);
-  if (!track) return res.status(404).json({ error: 'Not found' });
-
-  const filePath = path.join(tracksDir, `${track.file_hash}.${track.file_ext}`);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File missing' });
-
-  const stat = fs.statSync(filePath);
-  const total = stat.size;
-  const range = req.headers.range;
-
-  const ext = track.file_ext.toLowerCase();
-  const mimeMap = {
-    mp3: 'audio/mpeg',
-    m4a: 'audio/mp4',
-    flac: 'audio/flac',
-    ogg: 'audio/ogg',
-    opus: 'audio/ogg',
-    wav: 'audio/wav',
-    aiff: 'audio/aiff',
-    aif: 'audio/aiff',
-  };
-  const contentType = mimeMap[ext] || 'application/octet-stream';
-
-  if (range) {
-    const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(startStr, 10);
-    const end = endStr ? parseInt(endStr, 10) : total - 1;
-    const chunkSize = end - start + 1;
-
-    res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${total}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': chunkSize,
-      'Content-Type': contentType,
-    });
-    fs.createReadStream(filePath, { start, end }).pipe(res);
-  } else {
-    res.writeHead(200, {
-      'Content-Length': total,
-      'Accept-Ranges': 'bytes',
-      'Content-Type': contentType,
-    });
-    fs.createReadStream(filePath).pipe(res);
+  function sha256File(filePath) {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256')
+      const stream = fs.createReadStream(filePath)
+      stream.on('data', chunk => hash.update(chunk))
+      stream.on('end', () => resolve(hash.digest('hex')))
+      stream.on('error', reject)
+    })
   }
-});
 
-// POST /api/tracks — upload track
-// multipart fields: audio (file), meta (JSON string)
-router.post('/', (req, res) => {
-  if (!upload) return res.status(500).json({ error: 'Server not initialized' });
+  router.get('/', (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50))
+    const offset = (page - 1) * limit
 
-  upload.single('audio')(req, res, async (err) => {
-    if (err) return res.status(400).json({ error: err.message });
-    if (!req.file) return res.status(400).json({ error: 'No audio file' });
+    const tracks = db.prepare('SELECT * FROM tracks ORDER BY added_at DESC LIMIT ? OFFSET ?').all(limit, offset)
+    const { total } = db.prepare('SELECT COUNT(*) as total FROM tracks').get()
 
-    let meta;
+    res.json({ tracks, total, page, limit })
+  })
+
+  router.get('/:id', (req, res) => {
+    const track = db.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id)
+    if (!track) return res.status(404).json({ error: 'Not found' })
+    res.json(track)
+  })
+
+  router.get('/:id/file', (req, res) => {
+    const track = db.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id)
+    if (!track) return res.status(404).json({ error: 'Not found' })
+
+    const filePath = path.join(tracksDir, `${track.file_hash}.${track.file_ext}`)
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' })
+
+    const stat = fs.statSync(filePath)
+    const fileSize = stat.size
+    const mime = MIME_MAP[track.file_ext] || 'audio/mpeg'
+    const rangeHeader = req.headers['range']
+
+    if (rangeHeader) {
+      const [startStr, endStr] = rangeHeader.replace('bytes=', '').split('-')
+      const start = parseInt(startStr, 10)
+      const end = endStr ? parseInt(endStr, 10) : fileSize - 1
+      const chunkSize = end - start + 1
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': mime,
+      })
+      fs.createReadStream(filePath, { start, end }).pipe(res)
+    } else {
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Accept-Ranges': 'bytes',
+        'Content-Type': mime,
+      })
+      fs.createReadStream(filePath).pipe(res)
+    }
+  })
+
+  router.post('/', upload.fields([{ name: 'audio', maxCount: 1 }, { name: 'meta', maxCount: 1 }]), async (req, res) => {
+    const files = req.files
+    if (!files || !files['audio'] || !files['audio'][0]) {
+      return res.status(400).json({ error: 'Missing audio file' })
+    }
+
+    let meta
     try {
-      meta = JSON.parse(req.body.meta || '{}');
+      const metaStr = req.body.meta
+      if (!metaStr) throw new Error('Missing meta field')
+      meta = JSON.parse(metaStr)
     } catch {
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ error: 'Invalid meta JSON' });
+      const tmpFile = files['audio'][0].path
+      fs.unlink(tmpFile, () => {})
+      return res.status(400).json({ error: 'Invalid or missing meta JSON' })
     }
 
-    if (!meta.id) {
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ error: 'meta.id required' });
+    const tmpFile = files['audio'][0].path
+    const origName = files['audio'][0].originalname
+    const ext = path.extname(origName).slice(1).toLowerCase() || 'mp3'
+
+    try {
+      const fileHash = await sha256File(tmpFile)
+      const existing = db.prepare('SELECT id, file_hash FROM tracks WHERE file_hash = ?').get(fileHash)
+
+      if (existing) {
+        fs.unlink(tmpFile, () => {})
+        return res.json({ id: existing.id, file_hash: existing.file_hash, duplicate: true })
+      }
+
+      const finalPath = path.join(tracksDir, `${fileHash}.${ext}`)
+      fs.renameSync(tmpFile, finalPath)
+
+      const id = crypto.randomUUID()
+      db.prepare(`
+        INSERT INTO tracks (id, title, artist, album, track_no, duration_ms, file_hash, file_ext, cover_hash, codec, sample_rate, bitrate)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        meta.title || origName,
+        meta.artist || null,
+        meta.album || null,
+        meta.trackNo || meta.track_no || null,
+        meta.durationMs || meta.duration_ms || null,
+        fileHash,
+        ext,
+        meta.coverHash || meta.cover_hash || null,
+        meta.codec || null,
+        meta.sampleRate || meta.sample_rate || null,
+        meta.bitrate || null,
+      )
+
+      db.prepare(`INSERT INTO change_log (entity_type, entity_id, operation) VALUES ('track', ?, 'upsert')`).run(id)
+
+      return res.status(201).json({ id, file_hash: fileHash, duplicate: false })
+    } catch (err) {
+      fs.unlink(tmpFile, () => {})
+      console.error('Upload error:', err)
+      return res.status(500).json({ error: 'Internal server error' })
     }
+  })
 
-    // Compute SHA256 of uploaded file
-    const hash = await computeFileHash(req.file.path);
-    const ext = (meta.file_ext || path.extname(req.file.originalname || '').slice(1) || 'mp3').toLowerCase();
-    const finalPath = path.join(tracksDir, `${hash}.${ext}`);
+  router.delete('/:id', (req, res) => {
+    const track = db.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id)
+    if (!track) return res.status(404).json({ error: 'Not found' })
 
-    const db = getDb();
+    const filePath = path.join(tracksDir, `${track.file_hash}.${track.file_ext}`)
+    try { fs.unlinkSync(filePath) } catch { /* already gone */ }
 
-    // Check for duplicate by hash
-    const existing = db.prepare('SELECT id FROM tracks WHERE file_hash = ?').get(hash);
-    if (existing) {
-      // Idempotent — clean up temp file, return existing
-      fs.unlinkSync(req.file.path);
-      return res.json({ id: existing.id, file_hash: hash, duplicate: true });
-    }
+    db.prepare('DELETE FROM tracks WHERE id = ?').run(req.params.id)
+    db.prepare(`INSERT INTO change_log (entity_type, entity_id, operation) VALUES ('track', ?, 'delete')`).run(req.params.id)
 
-    // Move temp file to final location
-    fs.renameSync(req.file.path, finalPath);
+    res.json({ ok: true })
+  })
 
-    const track = {
-      id: meta.id,
-      title: meta.title || 'Unknown',
-      artist: meta.artist || null,
-      album: meta.album || null,
-      track_no: meta.track_no || null,
-      duration_ms: meta.duration_ms || null,
-      file_hash: hash,
-      file_ext: ext,
-      cover_hash: meta.cover_hash || null,
-      codec: meta.codec || null,
-      sample_rate: meta.sample_rate || null,
-      bitrate: meta.bitrate || null,
-    };
-
-    db.prepare(`
-      INSERT OR REPLACE INTO tracks
-        (id, title, artist, album, track_no, duration_ms, file_hash, file_ext, cover_hash, codec, sample_rate, bitrate)
-      VALUES
-        (@id, @title, @artist, @album, @track_no, @duration_ms, @file_hash, @file_ext, @cover_hash, @codec, @sample_rate, @bitrate)
-    `).run(track);
-
-    db.prepare(
-      `INSERT INTO change_log (entity_type, entity_id, operation) VALUES ('track', ?, 'upsert')`
-    ).run(meta.id);
-
-    res.status(201).json({ id: meta.id, file_hash: hash });
-  });
-});
-
-// DELETE /api/tracks/:id
-router.delete('/:id', (req, res) => {
-  const db = getDb();
-  const track = db.prepare('SELECT * FROM tracks WHERE id = ?').get(req.params.id);
-  if (!track) return res.status(404).json({ error: 'Not found' });
-
-  const filePath = path.join(tracksDir, `${track.file_hash}.${track.file_ext}`);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
-  db.prepare('DELETE FROM tracks WHERE id = ?').run(req.params.id);
-  db.prepare(
-    `INSERT INTO change_log (entity_type, entity_id, operation) VALUES ('track', ?, 'delete')`
-  ).run(req.params.id);
-
-  res.json({ ok: true });
-});
-
-function computeFileHash(filePath) {
-  return new Promise((resolve, reject) => {
-    const hash = crypto.createHash('sha256');
-    const stream = fs.createReadStream(filePath);
-    stream.on('data', (d) => hash.update(d));
-    stream.on('end', () => resolve(hash.digest('hex')));
-    stream.on('error', reject);
-  });
+  return router
 }
 
-module.exports = { router, init };
+module.exports = { createRouter }

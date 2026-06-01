@@ -1,284 +1,200 @@
 @import "tailwindcss";
 
-/* ── Sravya Design System ────────────────────────────────────────────────────
-   Named after the Sanskrit word श्रव्य (śravya) — "worthy of hearing",
-   from the root śru (to hear). Same root as Shruti (Vedic oral tradition).
-
-   Color philosophy:
-   • Deep midnight indigo as the canvas — not plain black, but night-sky blue.
-   • Saffron gold (kesar) as the accent — the colour of knowledge, fire, sacred.
-   • Warm parchment white — the colour of illuminated manuscripts, not cold chrome.
-   • Deep crimson for secondary energy — the raga's tension and resolution.
-   ──────────────────────────────────────────────────────────────────────────── */
-
-@layer base {
-  :root {
-    /* Backgrounds — Spotify-grade true black */
-    --bg:            #000000;
-    --surface:       #121212;
-    --surface-raised:#1a1a1a;
-    --surface-high:  #242424;
-    --overlay:       #2a2a2a;
-
-    /* Borders */
-    --border:        #282828;
-    --border-subtle: #1c1c1c;
-
-    /* Saffron gold — the Sravya signature */
-    --gold:          #c9943a;
-    --gold-bright:   #e8b862;
-    --gold-dim:      #9b7228;
-    --gold-glow:     rgba(201, 148, 58, 0.18);
-
-    /* Crimson secondary */
-    --crimson:       #a83458;
-    --crimson-dim:   #7a2440;
-
-    /* Text */
-    --text:          #ffffff;
-    --text-muted:    #a7a7a7;
-    --text-subtle:   #6a6a6a;
-    --text-on-gold:  #000000;
-
-    /* Functional */
-    --success:       #4caf7c;
-    --error:         #e05c5c;
-
-    /* Scrubber */
-    --scrubber-fill:  #ffffff;
-    --scrubber-track: #3a3a3a;
-
-    /* Sidebar */
-    --sidebar-bg:    #000000;
-
-    /* Spacing / sizing */
-    --sidebar-w:     240px;
-    --nowplay-h:     90px;
-    --radius-sm:     6px;
-    --radius:        10px;
-    --radius-lg:     16px;
-  }
-
-  /* ── Light theme ─────────────────────────────────────────────────────────── */
-  [data-theme="light"] {
-    --bg:            #f8f5f0;
-    --surface:       #ffffff;
-    --surface-raised:#f0ebe3;
-    --surface-high:  #e8e3db;
-    --overlay:       #ddd8d0;
-
-    --border:        #e0dbd3;
-    --border-subtle: #ebe6de;
-
-    --text:          #0a0a0a;
-    --text-muted:    #4a4a4a;
-    --text-subtle:   #8a8a8a;
-    --text-on-gold:  #ffffff;
-
-    --sidebar-bg:    #f0ebe3;
-
-    --scrubber-fill:  rgba(10, 10, 10, 0.8);
-    --scrubber-track: rgba(0, 0, 0, 0.14);
-  }
-
-  *,
-  *::before,
-  *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-
-  html,
-  body,
-  #root {
-    height: 100%;
-    width: 100%;
-    overflow: hidden;
-  }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    user-select: none;
-  }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar        { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track  { background: transparent; }
-  ::-webkit-scrollbar-thumb  { background: var(--overlay); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-subtle); }
-
-  /* Focus ring */
-  :focus-visible {
-    outline: 2px solid var(--gold);
-    outline-offset: 2px;
-    border-radius: var(--radius-sm);
-  }
+/* ─── Font ─────────────────────────────────────────────── */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui,
+    'Helvetica Neue', Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Utility tokens ───────────────────────────────────────────────────────── */
+/* ─── Light theme (default) ─────────────────────────────── */
+:root,
+[data-theme='light'] {
+  --bg: #f2f2f7;
+  --surface: rgba(255, 255, 255, 0.8);
+  --surface-raised: #ffffff;
+  --sidebar: rgba(248, 248, 250, 0.92);
+  --player: rgba(255, 255, 255, 0.96);
+  --overlay: rgba(0, 0, 0, 0.4);
 
-@layer utilities {
-  .text-gold      { color: var(--gold); }
-  .text-muted     { color: var(--text-muted); }
-  .text-subtle    { color: var(--text-subtle); }
-  .bg-surface     { background: var(--surface); }
-  .bg-raised      { background: var(--surface-raised); }
-  .border-default { border-color: var(--border); }
+  --text: #1c1c1e;
+  --text-2: #6e6e73;
+  --text-3: #aeaeb2;
+  --text-on-accent: #ffffff;
 
-  /* Gold glow — used on now-playing album art */
-  .glow-gold {
-    box-shadow: 0 0 40px var(--gold-glow), 0 0 80px rgba(201, 148, 58, 0.08);
-  }
+  --accent: #007aff;
+  --accent-hover: #0066d6;
+  --accent-muted: rgba(0, 122, 255, 0.1);
+  --green: #34c759;
+  --red: #ff3b30;
+  --orange: #ff9500;
 
-  /* Subtle inset border */
-  .inset-border {
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
+  --border: rgba(0, 0, 0, 0.08);
+  --separator: rgba(0, 0, 0, 0.1);
 
-  /* Premium gradient overlay (used on album art) */
-  .art-gradient {
-    background: linear-gradient(
-      to bottom,
-      transparent 40%,
-      rgba(0, 0, 0, 0.85) 100%
-    );
-  }
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-player: 0 -1px 0 rgba(0, 0, 0, 0.1), 0 -4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-sidebar: 1px 0 0 rgba(0, 0, 0, 0.08);
 
-  /* Spotify-style gold gradient page header */
-  .page-header-gradient {
-    background: linear-gradient(to bottom, rgba(201, 148, 58, 0.28) 0%, var(--bg) 300px);
-  }
-
-  /* Card hover lift */
-  .card-lift {
-    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
-  }
-  .card-lift:hover {
-    background: var(--surface-high) !important;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  }
-
-  /* Play button overlay on album cards */
-  .play-overlay {
-    opacity: 0;
-    transform: translateY(4px);
-    transition: opacity 0.2s, transform 0.2s;
-    pointer-events: none;
-  }
-  .group:hover .play-overlay {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-  }
+  /* Segmented control (pill tabs) */
+  --control-bg: rgba(0, 0, 0, 0.06);
+  --control-active: #ffffff;
+  --control-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  --control-text: var(--text);
+  --control-text-inactive: var(--text-2);
 }
 
-/* ── Animations ───────────────────────────────────────────────────────────── */
+/* ─── Dark theme ─────────────────────────────────────────── */
+[data-theme='dark'] {
+  --bg: #1c1c1e;
+  --surface: rgba(44, 44, 46, 0.8);
+  --surface-raised: #2c2c2e;
+  --sidebar: rgba(28, 28, 30, 0.95);
+  --player: rgba(28, 28, 30, 0.98);
+  --overlay: rgba(0, 0, 0, 0.6);
 
-@layer base {
-  @keyframes fade-in  { from { opacity: 0 } to { opacity: 1 } }
-  @keyframes slide-up { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
-  @keyframes spin-slow { to { transform: rotate(360deg) } }
-  @keyframes pulse-gold {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(201, 148, 58, 0.4); }
-    50%       { box-shadow: 0 0 0 8px rgba(201, 148, 58, 0); }
-  }
+  --text: #ffffff;
+  --text-2: #98989f;
+  --text-3: #636366;
+  --text-on-accent: #ffffff;
 
-  .animate-fade-in  { animation: fade-in  0.2s ease both; }
-  .animate-slide-up { animation: slide-up 0.25s ease both; }
-  .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-muted: rgba(10, 132, 255, 0.15);
+  --green: #30d158;
+  --red: #ff453a;
+  --orange: #ff9f0a;
 
-  /* Animated now-playing bars */
-  @keyframes now-playing-bar {
-    0%, 100% { height: 4px; }
-    50%       { height: 12px; }
-  }
-  .np-bar {
-    width: 3px;
-    background: var(--gold);
-    border-radius: 1px;
-    animation: now-playing-bar 0.8s ease-in-out infinite;
-    flex-shrink: 0;
-  }
-  .np-bar:nth-child(2) { animation-delay: 0.15s; }
-  .np-bar:nth-child(3) { animation-delay: 0.3s; }
+  --border: rgba(255, 255, 255, 0.08);
+  --separator: rgba(255, 255, 255, 0.1);
+
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-player: 0 -1px 0 rgba(255, 255, 255, 0.08), 0 -4px 16px rgba(0, 0, 0, 0.2);
+  --shadow-sidebar: 1px 0 0 rgba(255, 255, 255, 0.06);
+
+  /* Segmented control (pill tabs) */
+  --control-bg: rgba(255, 255, 255, 0.07);
+  --control-active: rgba(255, 255, 255, 0.14);
+  --control-active-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --control-text: var(--text);
+  --control-text-inactive: var(--text-2);
 }
 
-/* ── Range input (scrubber / volume) ─────────────────────────────────────── */
-input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-  height: 20px;   /* hit-target height */
+/* ─── Base ──────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-input[type="range"]::-webkit-slider-runnable-track {
-  background: var(--scrubber-track);
-  height: 4px;
-  border-radius: 2px;
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 0px;
-  height: 0px;
-  border-radius: 50%;
-  background: var(--text);
-  margin-top: -4.5px;
-  transition: width 0.1s, height 0.1s, background 0.1s;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-}
-
-/* Show thumb on hover/active only — cleaner look */
-input[type="range"]:hover::-webkit-slider-thumb,
-input[type="range"]:focus::-webkit-slider-thumb {
-  width: 13px;
-  height: 13px;
-  background: #fff;
-  margin-top: -4.5px;
-}
-
-input[type="range"]:active::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  background: #fff;
-  transform: scale(1.15);
-}
-
-/* Radix Tabs active trigger */
-.sravya-tab[data-state="active"] {
-  color: var(--gold) !important;
-  border-bottom-color: var(--gold);
-}
-.sravya-tab:not([data-state="active"]):hover {
+body {
+  background: var(--bg);
   color: var(--text);
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-/* Progress fill via CSS custom property --pct injected by React */
-input[type="range"].scrubber::-webkit-slider-runnable-track {
-  background: linear-gradient(
-    to right,
-    var(--scrubber-fill) 0%,
-    var(--scrubber-fill) var(--pct, 0%),
-    var(--scrubber-track) var(--pct, 0%),
-    var(--scrubber-track) 100%
-  );
-  height: 4px;
+/* ─── Glass utilities ────────────────────────────────────── */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
-/* ── Pulse-gold animation (now-playing ♪ indicator) ──────────────────────── */
-@keyframes pulse-gold-text {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
+.glass-sidebar {
+  background: var(--sidebar);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
-.animate-pulse-gold {
-  animation: pulse-gold-text 1.4s ease-in-out infinite;
+
+.glass-player {
+  background: var(--player);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--separator);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+/* ─── Range inputs ──────────────────────────────────────── */
+input[type='range'] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ─── Spin animation ─────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Now-playing animation ─────────────────────────────── */
+@keyframes playing-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.playing-dot {
+  width: 3px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: playing-bounce 0.8s ease-in-out infinite;
+}
+
+.playing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.playing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* ─── Focus ring ────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Selection ─────────────────────────────────────────── */
+::selection {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+/* ─── Link reset ────────────────────────────────────────── */
+a {
+  color: var(--accent);
+  text-decoration: none;
 }

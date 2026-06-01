@@ -1,28 +1,26 @@
-import { type ReactNode } from "react";
-import { render, type RenderOptions } from "@testing-library/react";
-import { MemoryRouter, type MemoryRouterProps } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import React from 'react'
+import { render, type RenderOptions } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-function makeQueryClient() {
+function createTestQueryClient() {
   return new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity },
+      mutations: { retry: false },
+    },
+  })
 }
 
-interface WrapperOptions extends RenderOptions {
-  routerProps?: MemoryRouterProps;
+function Providers({ children }: { children: React.ReactNode }) {
+  const queryClient = createTestQueryClient()
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>{children}</BrowserRouter>
+    </QueryClientProvider>
+  )
 }
 
-export function renderWithProviders(ui: ReactNode, { routerProps, ...options }: WrapperOptions = {}) {
-  const queryClient = makeQueryClient();
-
-  function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter {...routerProps}>{children}</MemoryRouter>
-      </QueryClientProvider>
-    );
-  }
-
-  return { queryClient, ...render(ui, { wrapper: Wrapper, ...options }) };
+export function renderWithProviders(ui: React.ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
+  return render(ui, { wrapper: Providers, ...options })
 }

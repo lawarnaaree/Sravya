@@ -1,102 +1,72 @@
-import { useState, useEffect } from "react";
-import { Search as SearchIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/api";
-import TrackList from "@/components/TrackList";
+import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Search as SearchIcon } from 'lucide-react'
+import { api } from '@/api'
+import { TrackList } from '@/components/TrackList'
 
-function useDebounced(value: string, delay: number) {
-  const [debounced, setDebounced] = useState(value);
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
   useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
-  return debounced;
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
 }
 
-export default function Search() {
-  const [query, setQuery] = useState("");
-  const debouncedQuery = useDebounced(query.trim(), 400);
+export function Search() {
+  const [query, setQuery] = useState('')
+  const debouncedQuery = useDebounce(query, 400)
 
-  const resultsQuery = useQuery({
-    queryKey: ["search", debouncedQuery],
-    queryFn: () => api.library.search(debouncedQuery),
+  const { data: results = [] } = useQuery({
+    queryKey: ['search', debouncedQuery],
+    queryFn: () => api.tracks.search(debouncedQuery),
     enabled: debouncedQuery.length > 0,
-    staleTime: 10_000,
-  });
-
-  const results = resultsQuery.data ?? [];
+  })
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Search bar */}
-      <div className="shrink-0 px-6 pt-8 pb-5">
-        <h1 className="mb-4 text-3xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
+    <div className="flex flex-col h-full">
+      <div className="px-6 pt-6 pb-4 shrink-0">
+        <h1 className="text-[22px] font-semibold mb-4" style={{ color: 'var(--text)' }}>
           Search
         </h1>
-        <div className="relative max-w-lg">
-          <SearchIcon
-            size={16}
-            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2"
-            style={{ color: "var(--text-subtle)" }}
-          />
+
+        <div
+          className="flex items-center gap-2 px-3 py-2.5 rounded-2xl"
+          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}
+        >
+          <SearchIcon size={16} style={{ color: 'var(--text-3)' }} />
           <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tracks, albums, artists…"
             autoFocus
-            className="w-full rounded-full py-3 pr-5 pl-11 text-sm font-medium transition-all outline-none"
-            style={{
-              background: "var(--surface-raised)",
-              border: "2px solid transparent",
-              color: "var(--text)",
-            }}
-            onFocus={(e) => {
-              (e.target as HTMLInputElement).style.borderColor = "var(--gold)";
-              (e.target as HTMLInputElement).style.background = "var(--surface-high)";
-            }}
-            onBlur={(e) => {
-              (e.target as HTMLInputElement).style.borderColor = "transparent";
-              (e.target as HTMLInputElement).style.background = "var(--surface-raised)";
-            }}
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search tracks, artists, albums…"
+            className="flex-1 bg-transparent text-[15px] outline-none"
+            style={{ color: 'var(--text)' }}
           />
         </div>
       </div>
 
-      {/* Results */}
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {debouncedQuery === "" ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2">
-            <SearchIcon size={36} style={{ color: "var(--text-subtle)" }} />
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Search your library
-            </p>
-          </div>
-        ) : resultsQuery.isPending ? (
-          <div className="flex h-full items-center justify-center">
-            <div
-              className="h-5 w-5 animate-spin rounded-full border-2"
-              style={{ borderColor: "var(--gold)", borderTopColor: "transparent" }}
-            />
-          </div>
-        ) : results.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2">
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              No results for &ldquo;{debouncedQuery}&rdquo;
-            </p>
-          </div>
-        ) : (
-          <div className="flex h-full flex-col">
-            <p className="shrink-0 px-6 py-2 text-xs" style={{ color: "var(--text-subtle)" }}>
-              {results.length} result{results.length !== 1 ? "s" : ""} for &ldquo;{debouncedQuery}
-              &rdquo;
-            </p>
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <TrackList tracks={results} showAlbum />
+      <div className="flex-1 min-h-0 flex flex-col">
+        {debouncedQuery ? (
+          results.length > 0 ? (
+            <TrackList tracks={results} />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2">
+              <p className="text-[15px] font-medium" style={{ color: 'var(--text-2)' }}>
+                No results for "{debouncedQuery}"
+              </p>
+              <p className="text-[13px]" style={{ color: 'var(--text-3)' }}>
+                Try a different search term
+              </p>
             </div>
+          )
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-[var(--text-3)] text-sm">Type to search your library</p>
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }

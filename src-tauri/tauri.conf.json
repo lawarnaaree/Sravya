@@ -5,25 +5,26 @@
   "identifier": "com.sravya.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://192.168.1.67:1420/",
     "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Sravya",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
         "minHeight": 600,
+        "resizable": true,
         "decorations": true,
-        "transparent": false,
-        "resizable": true
+        "transparent": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost data: blob:; media-src 'self' asset: https://asset.localhost blob:; font-src 'self' data:; connect-src 'self' https://musicbrainz.org https://acoustid.org https://lrclib.net http://127.0.0.1:* http://192.168.*:* http://10.*:* http://172.16.*:* http://172.17.*:* http://172.18.*:* http://172.19.*:* http://172.20.*:* http://172.21.*:* http://172.22.*:* http://172.23.*:* http://172.24.*:* http://172.25.*:* http://172.26.*:* http://172.27.*:* http://172.28.*:* http://172.29.*:* http://172.30.*:* http://172.31.*:* ws://127.0.0.1:* ws://192.168.*:* ws://10.*:* ws://172.16.*:* ws://172.17.*:* ws://172.18.*:* ws://172.19.*:* ws://172.20.*:* ws://172.21.*:* ws://172.22.*:* ws://172.23.*:* ws://172.24.*:* ws://172.25.*:* ws://172.26.*:* ws://172.27.*:* ws://172.28.*:* ws://172.29.*:* ws://172.30.*:* ws://172.31.*:*"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob: https://asset.localhost; media-src 'self' asset: blob: https://asset.localhost; connect-src 'self' https://sravya.api.lawarnaaree.com.np https://musicbrainz.org https://api.acoustid.org https://lrclib.net http://127.0.0.1:* http://192.168.*:* http://10.*:* http://172.16.*:* http://172.17.*:* http://172.18.*:* http://172.19.*:* http://172.20.*:* http://172.21.*:* http://172.22.*:* http://172.23.*:* http://172.24.*:* http://172.25.*:* http://172.26.*:* http://172.27.*:* http://172.28.*:* http://172.29.*:* http://172.30.*:* http://172.31.*:*"
     }
   },
   "bundle": {
@@ -35,11 +36,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "externalBin": [],
-    "iOS": {
-      "minimumSystemVersion": "15.0"
-    }
-  },
-  "plugins": {}
+    ]
+  }
 }

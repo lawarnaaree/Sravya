@@ -1,104 +1,79 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { usePlayerStore } from "@/state/player";
-import type { Track } from "@/api";
+import { describe, it, expect, beforeEach } from 'vitest'
+import { usePlayerStore } from '@/state/player'
+import type { Track } from '@/api'
 
-const INITIAL: Parameters<typeof usePlayerStore.setState>[0] = {
-  state: "stopped",
-  currentTrack: undefined,
-  positionMs: 0,
-  durationMs: 0,
-  volume: 1,
-  muted: false,
-  shuffle: false,
-  repeat: "off",
-  queue: [],
-  queueIndex: 0,
-  isFullScreen: false,
-};
-
-const MOCK_TRACK: Track = {
-  id: "t1",
-  title: "Rahe Na Rahe Hum",
-  artist: "Lata Mangeshkar",
-  album: "Mamta",
-  durationMs: 245000,
-  filePath: "/music/rahe.flac",
-  fileHash: "abc123",
-  codec: "FLAC",
-  playCount: 3,
-  addedAt: "2025-01-01T00:00:00Z",
-};
+const mockTrack: Track = {
+  id: 'track-1',
+  title: 'Test Track',
+  artist: 'Test Artist',
+  album: 'Test Album',
+  file_hash: 'abc123',
+  file_ext: 'mp3',
+  file_path: '/music/test.mp3',
+  added_at: '2024-01-01T00:00:00Z',
+}
 
 beforeEach(() => {
-  usePlayerStore.setState(INITIAL);
-});
+  usePlayerStore.setState({
+    currentTrack: null,
+    queue: [],
+    queueIndex: 0,
+    isPlaying: false,
+    positionMs: 0,
+    durationMs: 0,
+    volume: 1,
+    muted: false,
+    shuffle: false,
+    repeat: 'Off',
+    isFullScreen: false,
+  })
+})
 
-describe("usePlayerStore — initial state", () => {
-  it("starts stopped", () => {
-    expect(usePlayerStore.getState().state).toBe("stopped");
-  });
+describe('usePlayerStore', () => {
+  it('starts with no current track', () => {
+    expect(usePlayerStore.getState().currentTrack).toBeNull()
+  })
 
-  it("starts with no track", () => {
-    expect(usePlayerStore.getState().currentTrack).toBeUndefined();
-  });
+  it('sets current track', () => {
+    usePlayerStore.getState().setCurrentTrack(mockTrack)
+    expect(usePlayerStore.getState().currentTrack?.id).toBe('track-1')
+  })
 
-  it("starts at position 0", () => {
-    expect(usePlayerStore.getState().positionMs).toBe(0);
-  });
+  it('sets playing state', () => {
+    usePlayerStore.getState().setPlaying(true)
+    expect(usePlayerStore.getState().isPlaying).toBe(true)
+  })
 
-  it("starts with full volume", () => {
-    expect(usePlayerStore.getState().volume).toBe(1);
-  });
+  it('toggles muted', () => {
+    usePlayerStore.getState().setMuted(true)
+    expect(usePlayerStore.getState().muted).toBe(true)
+    usePlayerStore.getState().setMuted(false)
+    expect(usePlayerStore.getState().muted).toBe(false)
+  })
 
-  it("starts not fullscreen", () => {
-    expect(usePlayerStore.getState().isFullScreen).toBe(false);
-  });
-});
+  it('sets volume', () => {
+    usePlayerStore.getState().setVolume(0.5)
+    expect(usePlayerStore.getState().volume).toBe(0.5)
+  })
 
-describe("usePlayerStore — setPosition", () => {
-  it("updates positionMs", () => {
-    usePlayerStore.getState().setPosition(32000);
-    expect(usePlayerStore.getState().positionMs).toBe(32000);
-  });
-});
+  it('sets repeat mode', () => {
+    usePlayerStore.getState().setRepeat('All')
+    expect(usePlayerStore.getState().repeat).toBe('All')
+  })
 
-describe("usePlayerStore — setCurrentTrack", () => {
-  it("stores the track", () => {
-    usePlayerStore.getState().setCurrentTrack(MOCK_TRACK);
-    expect(usePlayerStore.getState().currentTrack?.id).toBe("t1");
-    expect(usePlayerStore.getState().currentTrack?.title).toBe("Rahe Na Rahe Hum");
-  });
+  it('sets shuffle', () => {
+    usePlayerStore.getState().setShuffle(true)
+    expect(usePlayerStore.getState().shuffle).toBe(true)
+  })
 
-  it("can clear the track", () => {
-    usePlayerStore.getState().setCurrentTrack(MOCK_TRACK);
-    usePlayerStore.getState().setCurrentTrack(undefined);
-    expect(usePlayerStore.getState().currentTrack).toBeUndefined();
-  });
-});
+  it('sets queue', () => {
+    usePlayerStore.getState().setQueue([mockTrack], 0)
+    expect(usePlayerStore.getState().queue).toHaveLength(1)
+    expect(usePlayerStore.getState().queueIndex).toBe(0)
+  })
 
-describe("usePlayerStore — setFullScreen", () => {
-  it("sets fullscreen to true", () => {
-    usePlayerStore.getState().setFullScreen(true);
-    expect(usePlayerStore.getState().isFullScreen).toBe(true);
-  });
-
-  it("toggles back to false", () => {
-    usePlayerStore.getState().setFullScreen(true);
-    usePlayerStore.getState().setFullScreen(false);
-    expect(usePlayerStore.getState().isFullScreen).toBe(false);
-  });
-});
-
-describe("usePlayerStore — setStatus", () => {
-  it("updates playback state", () => {
-    usePlayerStore.getState().setStatus({ ...INITIAL, state: "playing" });
-    expect(usePlayerStore.getState().state).toBe("playing");
-  });
-
-  it("updates shuffle and repeat together", () => {
-    usePlayerStore.getState().setStatus({ ...INITIAL, shuffle: true, repeat: "all" });
-    const s = usePlayerStore.getState();
-    expect(s.shuffle).toBe(true);
-    expect(s.repeat).toBe("all");
-  });
-});
+  it('sets full screen', () => {
+    usePlayerStore.getState().setFullScreen(true)
+    expect(usePlayerStore.getState().isFullScreen).toBe(true)
+  })
+})

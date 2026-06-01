@@ -1,34 +1,48 @@
-import { create } from "zustand";
-import type { DownloadJob } from "@/api";
+import { create } from 'zustand'
 
-interface DownloadQueueState {
-  jobs: DownloadJob[];
-  pendingUrl: string | null;
-  toastMessage: string | null;
-  setJobs: (jobs: DownloadJob[]) => void;
-  upsertJob: (job: DownloadJob) => void;
-  setPendingUrl: (url: string | null) => void;
-  setToastMessage: (msg: string | null) => void;
-  clearToast: () => void;
+export type DownloadStatus = 'queued' | 'downloading' | 'complete' | 'failed'
+
+export interface DownloadJob {
+  trackId: string
+  url: string
+  status: DownloadStatus
+  progress: number
+  error?: string
 }
 
-export const useDownloadQueueStore = create<DownloadQueueState>((set) => ({
+interface DownloadQueueStore {
+  jobs: DownloadJob[]
+  pendingUrl: string | null
+  toastMessage: string | null
+
+  upsertJob: (job: Partial<DownloadJob> & { trackId: string }) => void
+  setPendingUrl: (url: string | null) => void
+  setToastMessage: (msg: string | null) => void
+  clearToast: () => void
+}
+
+export const useDownloadQueueStore = create<DownloadQueueStore>(set => ({
   jobs: [],
   pendingUrl: null,
   toastMessage: null,
 
-  setJobs: (jobs) => set({ jobs }),
-
-  upsertJob: (job) =>
-    set((s) => {
-      const idx = s.jobs.findIndex((j) => j.id === job.id);
-      if (idx === -1) return { jobs: [...s.jobs, job] };
-      const jobs = [...s.jobs];
-      jobs[idx] = job;
-      return { jobs };
+  upsertJob: job =>
+    set(state => {
+      const idx = state.jobs.findIndex(j => j.trackId === job.trackId)
+      if (idx >= 0) {
+        const updated = [...state.jobs]
+        updated[idx] = { ...updated[idx], ...job }
+        return { jobs: updated }
+      }
+      return {
+        jobs: [
+          ...state.jobs,
+          { url: '', status: 'queued', progress: 0, ...job } as DownloadJob,
+        ],
+      }
     }),
 
-  setPendingUrl: (pendingUrl) => set({ pendingUrl }),
-  setToastMessage: (toastMessage) => set({ toastMessage }),
+  setPendingUrl: url => set({ pendingUrl: url }),
+  setToastMessage: msg => set({ toastMessage: msg }),
   clearToast: () => set({ toastMessage: null }),
-}));
+}))

@@ -1,131 +1,99 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api";
-import type { EqSettings } from "@/api";
+import React, { useState } from 'react'
 
-const FREQ_LABELS = ["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"];
+const BANDS = [
+  { freq: '32', label: '32Hz' },
+  { freq: '64', label: '64Hz' },
+  { freq: '125', label: '125Hz' },
+  { freq: '250', label: '250Hz' },
+  { freq: '500', label: '500Hz' },
+  { freq: '1k', label: '1kHz' },
+  { freq: '2k', label: '2kHz' },
+  { freq: '4k', label: '4kHz' },
+  { freq: '8k', label: '8kHz' },
+  { freq: '16k', label: '16kHz' },
+]
 
-export default function EqualizerPanel() {
-  const queryClient = useQueryClient();
+export function EqualizerPanel() {
+  const [gains, setGains] = useState<number[]>(Array(10).fill(0))
+  const [preamp, setPreamp] = useState(0)
 
-  const { data: settings } = useQuery({
-    queryKey: ["eq-settings"],
-    queryFn: () => api.eq.getSettings(),
-  });
+  const setGain = (index: number, value: number) => {
+    const next = [...gains]
+    next[index] = value
+    setGains(next)
+  }
 
-  const mutation = useMutation({
-    mutationFn: (s: EqSettings) => api.eq.setSettings(s),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["eq-settings"] }),
-  });
-
-  if (!settings) return null;
-
-  const update = (patch: Partial<EqSettings>) => {
-    mutation.mutate({ ...settings, ...patch });
-  };
-
-  const updateBand = (index: number, gainDb: number) => {
-    const bands = settings.bands.map((b, i) => (i === index ? { ...b, gainDb } : b));
-    mutation.mutate({ ...settings, bands });
-  };
+  const reset = () => {
+    setGains(Array(10).fill(0))
+    setPreamp(0)
+  }
 
   return (
-    <div>
-      {/* Enable + preamp row */}
-      <div className="mb-4 flex items-center justify-between">
-        <label className="flex cursor-pointer items-center gap-2">
-          <div
-            className="relative h-5 w-9 rounded-full transition-colors"
-            style={{ background: settings.enabled ? "var(--gold)" : "var(--overlay)" }}
-            onClick={() => update({ enabled: !settings.enabled })}
-          >
-            <div
-              className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform"
-              style={{ transform: settings.enabled ? "translateX(16px)" : "translateX(2px)" }}
-            />
-          </div>
-          <span className="text-sm" style={{ color: "var(--text)" }}>
-            Equalizer
-          </span>
-        </label>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: "var(--text-subtle)" }}>
-            Preamp
-          </span>
-          <input
-            type="range"
-            min={-12}
-            max={12}
-            step={0.5}
-            value={settings.preampDb}
-            onChange={(e) => update({ preampDb: parseFloat(e.target.value) })}
-            className="w-20"
-            disabled={!settings.enabled}
-          />
-          <span
-            className="w-10 text-right text-xs tabular-nums"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {settings.preampDb > 0 ? "+" : ""}
-            {settings.preampDb.toFixed(1)}
-          </span>
-        </div>
+    <div
+      className="p-4 rounded-2xl"
+      style={{ background: 'var(--surface-raised)', boxShadow: 'var(--shadow-card)' }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[15px] font-semibold" style={{ color: 'var(--text)' }}>
+          Equalizer
+        </h3>
+        <button
+          onClick={reset}
+          className="text-[13px] font-medium"
+          style={{ color: 'var(--accent)' }}
+        >
+          Reset
+        </button>
       </div>
 
-      {/* Band sliders */}
-      <div
-        className="flex items-end justify-between gap-1 rounded-xl p-4"
-        style={{
-          background: "var(--surface-raised)",
-          opacity: settings.enabled ? 1 : 0.5,
-          pointerEvents: settings.enabled ? "auto" : "none",
-        }}
-      >
-        {settings.bands.map((band, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-2">
-            <span
-              className="text-[10px] tabular-nums"
-              style={{ color: band.gainDb !== 0 ? "var(--gold)" : "var(--text-subtle)" }}
-            >
-              {band.gainDb > 0 ? "+" : ""}
-              {band.gainDb.toFixed(0)}
+      {/* Preamp */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-[12px] w-16 shrink-0" style={{ color: 'var(--text-2)' }}>
+          Preamp
+        </span>
+        <input
+          type="range"
+          min={-12}
+          max={12}
+          step={0.5}
+          value={preamp}
+          onChange={e => setPreamp(Number(e.target.value))}
+          className="flex-1"
+          style={{ accentColor: 'var(--accent)' }}
+        />
+        <span className="text-[12px] w-10 text-right tabular-nums" style={{ color: 'var(--text-3)' }}>
+          {preamp > 0 ? '+' : ''}{preamp}dB
+        </span>
+      </div>
+
+      {/* Bands */}
+      <div className="flex gap-2 justify-between">
+        {BANDS.map((band, i) => (
+          <div key={band.freq} className="flex flex-col items-center gap-1.5">
+            <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-3)' }}>
+              {gains[i] > 0 ? '+' : ''}{gains[i]}
             </span>
-            <div className="relative flex h-28 items-center justify-center">
-              <input
-                type="range"
-                min={-12}
-                max={12}
-                step={0.5}
-                value={band.gainDb}
-                onChange={(e) => updateBand(i, parseFloat(e.target.value))}
-                style={{
-                  writingMode: "vertical-lr",
-                  direction: "rtl",
-                  height: "6rem",
-                  width: "1.5rem",
-                  cursor: "pointer",
-                }}
-                aria-label={`${FREQ_LABELS[i]} Hz`}
-              />
-            </div>
-            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              {FREQ_LABELS[i]}
+            <input
+              type="range"
+              min={-12}
+              max={12}
+              step={0.5}
+              value={gains[i]}
+              onChange={e => setGain(i, Number(e.target.value))}
+              className="h-24 cursor-pointer"
+              style={{
+                writingMode: 'vertical-lr',
+                direction: 'rtl',
+                appearance: 'auto',
+                accentColor: 'var(--accent)',
+              } as React.CSSProperties}
+            />
+            <span className="text-[9px]" style={{ color: 'var(--text-3)' }}>
+              {band.label}
             </span>
           </div>
         ))}
       </div>
-
-      <div className="mt-2 flex justify-end">
-        <button
-          className="text-xs transition-colors"
-          style={{ color: "var(--text-subtle)" }}
-          onClick={() =>
-            update({ preampDb: 0, bands: settings.bands.map((b) => ({ ...b, gainDb: 0 })) })
-          }
-        >
-          Reset all
-        </button>
-      </div>
     </div>
-  );
+  )
 }

@@ -1,26 +1,44 @@
-const { Router } = require('express');
-const { getDb } = require('../db/database');
+'use strict'
 
-const router = Router();
+const { Router } = require('express')
 
-// GET /api/sync/changes?since=<ISO timestamp>
-// Returns delta log entries since the given timestamp — same shape as LAN sync /sync/changes
-router.get('/changes', (req, res) => {
-  const db = getDb();
-  const since = req.query.since || '1970-01-01T00:00:00Z';
+function createRouter(db) {
+  const router = Router()
 
-  const changes = db.prepare(
-    `SELECT seq, entity_type as entityType, entity_id as entityId, operation, occurred_at as occurredAt
-     FROM change_log
-     WHERE occurred_at > ?
-     ORDER BY seq ASC
-     LIMIT 1000`
-  ).all(since);
+  router.get('/changes', (req, res) => {
+    const since = req.query.since
+    const serverTime = new Date().toISOString()
 
-  res.json({
-    changes,
-    serverTime: new Date().toISOString(),
-  });
-});
+    let rows
+    if (since) {
+      rows = db.prepare(
+        `SELECT seq, entity_type, entity_id, operation, occurred_at
+         FROM change_log
+         WHERE occurred_at > ?
+         ORDER BY seq ASC
+         LIMIT 1000`
+      ).all(since)
+    } else {
+      rows = db.prepare(
+        `SELECT seq, entity_type, entity_id, operation, occurred_at
+         FROM change_log
+         ORDER BY seq ASC
+         LIMIT 1000`
+      ).all()
+    }
 
-module.exports = router;
+    const changes = rows.map(row => ({
+      seq: row.seq,
+      entityType: row.entity_type,
+      entityId: row.entity_id,
+      operation: row.operation,
+      occurredAt: row.occurred_at,
+    }))
+
+    res.json({ changes, serverTime })
+  })
+
+  return router
+}
+
+module.exports = { createRouter }

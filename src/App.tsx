@@ -1,39 +1,36 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
-import Sidebar from "@/components/Sidebar";
-import NowPlayingBar from "@/components/NowPlayingBar";
-import NowPlayingFull from "@/components/NowPlayingFull";
-import BottomTabBar from "@/components/BottomTabBar";
-import Library from "@/views/Library";
-import Playlists from "@/views/Playlists";
-import Search from "@/views/Search";
-import Settings from "@/views/Settings";
-import Sync from "@/views/Sync";
-import { usePlaybackPoller } from "@/hooks/usePlayback";
-import { useLibraryEvents } from "@/hooks/useLibraryEvents";
-import { useClipboardMonitor } from "@/hooks/useClipboardMonitor";
-import { useDownloadEvents } from "@/hooks/useDownloadEvents";
-import { useLanSyncEvents } from "@/hooks/useLanSyncEvents";
-import { usePlatform } from "@/hooks/usePlatform";
-import { usePlayerStore } from "@/state/player";
-import DownloadToast from "@/components/DownloadToast";
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { Sidebar } from '@/components/Sidebar'
+import { BottomTabBar } from '@/components/BottomTabBar'
+import { NowPlayingBar } from '@/components/NowPlayingBar'
+import { NowPlayingFull } from '@/components/NowPlayingFull'
+import { DownloadToast } from '@/components/DownloadToast'
+import { Library } from '@/views/Library'
+import { Playlists } from '@/views/Playlists'
+import { Search } from '@/views/Search'
+import { Settings } from '@/views/Settings'
+import { Sync } from '@/views/Sync'
+import { usePlatform } from '@/hooks/usePlatform'
+import { usePlaybackPoller } from '@/hooks/usePlayback'
+import { useLibraryEvents } from '@/hooks/useLibraryEvents'
+import { useDownloadEvents } from '@/hooks/useDownloadEvents'
+import { useLanSyncEvents } from '@/hooks/useLanSyncEvents'
+import { useClipboardMonitor } from '@/hooks/useClipboardMonitor'
 
 export default function App() {
-  usePlaybackPoller();
-  useLibraryEvents();
-  useClipboardMonitor();
-  useDownloadEvents();
-  useLanSyncEvents();
+  const platform = usePlatform()
 
-  const { isFullScreen, setFullScreen } = usePlayerStore();
-  const platform = usePlatform();
-  const isMobile = platform === "ios";
+  usePlaybackPoller()
+  useLibraryEvents()
+  useDownloadEvents()
+  useLanSyncEvents()
+  useClipboardMonitor()
 
   return (
-    <div className="flex h-full flex-col" style={{ background: "var(--bg)", color: "var(--text)" }}>
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!isMobile && <Sidebar />}
-        <main className="min-w-0 flex-1 overflow-hidden">
+    <div className="flex flex-col h-full" style={{ background: 'var(--bg)' }}>
+      <div className="flex flex-1 min-h-0">
+        {platform === 'desktop' && <Sidebar />}
+
+        <main className="flex-1 min-w-0 overflow-hidden">
           <Routes>
             <Route path="/" element={<Navigate to="/library" replace />} />
             <Route path="/library" element={<Library />} />
@@ -45,14 +42,13 @@ export default function App() {
         </main>
       </div>
 
-      <NowPlayingBar compact={isMobile} />
-      {isMobile && <BottomTabBar />}
+      <NowPlayingBar />
 
-      {!isMobile && <DownloadToast />}
+      {platform === 'ios' && <BottomTabBar />}
 
-      <AnimatePresence>
-        {isFullScreen && <NowPlayingFull onClose={() => setFullScreen(false)} />}
-      </AnimatePresence>
+      {platform === 'desktop' && <DownloadToast />}
+
+      <NowPlayingFull />
     </div>
-  );
+  )
 }

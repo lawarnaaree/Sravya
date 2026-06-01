@@ -1,4 +1,2 @@
-pub mod identity;
-#[cfg(not(target_os = "ios"))]
-pub mod keychain;
-pub mod sharing_crypto;
+pub mod auth;
+pub mod keys;

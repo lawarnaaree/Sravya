@@ -1,79 +1,57 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from 'vitest'
+import { formatDuration, pluralize, cn } from '@/lib/utils'
 
-vi.mock("@tauri-apps/api/core", () => ({
-  convertFileSrc: (path: string) => `asset://${path}`,
-}));
+describe('formatDuration', () => {
+  it('formats seconds', () => {
+    expect(formatDuration(65000)).toBe('1:05')
+  })
 
-import { formatDuration, pluralize, cn, coverUrl } from "@/lib/utils";
+  it('formats minutes', () => {
+    expect(formatDuration(3661000)).toBe('1:01:01')
+  })
 
-describe("formatDuration", () => {
-  it("formats zero as 0:00", () => {
-    expect(formatDuration(0)).toBe("0:00");
-  });
+  it('pads single digit seconds', () => {
+    expect(formatDuration(5000)).toBe('0:05')
+  })
 
-  it("formats seconds under a minute", () => {
-    expect(formatDuration(9000)).toBe("0:09");
-  });
+  it('returns 0:00 for 0', () => {
+    expect(formatDuration(0)).toBe('0:00')
+  })
 
-  it("formats minutes and seconds", () => {
-    expect(formatDuration(65000)).toBe("1:05");
-  });
+  it('returns 0:00 for negative', () => {
+    expect(formatDuration(-100)).toBe('0:00')
+  })
+})
 
-  it("pads seconds to two digits", () => {
-    expect(formatDuration(120000)).toBe("2:00");
-  });
+describe('pluralize', () => {
+  it('singular', () => {
+    expect(pluralize(1, 'track')).toBe('1 track')
+  })
 
-  it("formats hours correctly", () => {
-    expect(formatDuration(3661000)).toBe("1:01:01");
-  });
+  it('plural', () => {
+    expect(pluralize(5, 'track')).toBe('5 tracks')
+  })
 
-  it("pads minutes when hours are present", () => {
-    expect(formatDuration(3600000)).toBe("1:00:00");
-  });
-});
+  it('zero is plural', () => {
+    expect(pluralize(0, 'track')).toBe('0 tracks')
+  })
 
-describe("pluralize", () => {
-  it("uses singular for exactly 1", () => {
-    expect(pluralize(1, "track", "tracks")).toBe("1 track");
-  });
+  it('custom plural', () => {
+    expect(pluralize(2, 'library', 'libraries')).toBe('2 libraries')
+  })
+})
 
-  it("uses plural for 0", () => {
-    expect(pluralize(0, "track", "tracks")).toBe("0 tracks");
-  });
+describe('cn', () => {
+  it('merges classes', () => {
+    expect(cn('foo', 'bar')).toBe('foo bar')
+  })
 
-  it("uses plural for more than 1", () => {
-    expect(pluralize(5, "track", "tracks")).toBe("5 tracks");
-  });
-});
+  it('deduplicates tailwind conflicts', () => {
+    const result = cn('text-red-500', 'text-blue-500')
+    expect(result).toBe('text-blue-500')
+  })
 
-describe("cn", () => {
-  it("joins class names", () => {
-    expect(cn("a", "b")).toBe("a b");
-  });
-
-  it("ignores falsy values", () => {
-    expect(cn("a", false && "b", undefined)).toBe("a");
-  });
-
-  it("deduplicates conflicting tailwind classes (last wins)", () => {
-    expect(cn("p-2", "p-4")).toBe("p-4");
-  });
-});
-
-describe("coverUrl", () => {
-  it("returns undefined for null", () => {
-    expect(coverUrl(null)).toBeUndefined();
-  });
-
-  it("returns undefined for undefined", () => {
-    expect(coverUrl(undefined)).toBeUndefined();
-  });
-
-  it("returns undefined for empty string", () => {
-    expect(coverUrl("")).toBeUndefined();
-  });
-
-  it("converts a file path via convertFileSrc", () => {
-    expect(coverUrl("/music/cover.jpg")).toBe("asset:///music/cover.jpg");
-  });
-});
+  it('handles conditional classes', () => {
+    expect(cn('base', false && 'skip', 'end')).toBe('base end')
+  })
+})
