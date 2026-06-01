@@ -33,23 +33,16 @@ jobs:
       # ── Upload ALL server files via rsync ─────────────────────────────────
       # Excludes: .env (stays on server), uploads/ (audio files), db/ (SQLite),
       # node_modules/ (reinstalled on server), tests/ (not needed in prod)
-      - name: Rsync server files to cPanel
-        uses: burnett01/rsync-deployments@7.0.1
+      - name: Copy server files via SCP to cPanel
+        uses: appleboy/scp-action@v0.1.7
         with:
-          switches: >-
-            -avz
-            --delete
-            --exclude='.env'
-            --exclude='uploads/'
-            --exclude='db/'
-            --exclude='node_modules/'
-            --exclude='tests/'
-          path: server/
-          remote_path: ${{ secrets.CPANEL_APP_PATH }}/
-          remote_host: ${{ secrets.CPANEL_SSH_HOST }}
-          remote_user: ${{ secrets.CPANEL_SSH_USER }}
-          remote_key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
-          remote_port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
+          host: ${{ secrets.CPANEL_SSH_HOST }}
+          username: ${{ secrets.CPANEL_SSH_USER }}
+          key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
+          source: "server/app.js,server/index.js,server/package.json,server/middleware,server/routes,server/db/database.js"
+          target: ${{ secrets.CPANEL_APP_PATH }}
+          strip_components: 1
 
       # ── SSH: create dirs, install deps, restart Passenger ─────────────────
       - name: Bootstrap dirs, install deps, restart app
