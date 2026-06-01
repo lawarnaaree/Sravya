@@ -53,11 +53,25 @@ jobs:
             APP_PATH="${{ secrets.CPANEL_APP_PATH }}"
 
             # Activate cPanel's CloudLinux Node.js virtual environment.
-            # cPanel installs a per-app venv at: ~/nodevenv/<app-basename>/<major-ver>/
+            # Try app-basename first, then fall back to any venv under ~/nodevenv/.
             APP_BASENAME=$(basename "$APP_PATH")
-            for venv in "$HOME/nodevenv/$APP_BASENAME"/*/bin/activate; do
-              [ -f "$venv" ] && source "$venv" && break
+            ACTIVATED=0
+            for venv in \
+              "$HOME/nodevenv/$APP_BASENAME"/*/bin/activate \
+              "$HOME/nodevenv"/*/*/bin/activate; do
+              if [ -f "$venv" ]; then
+                echo "Activating venv: $venv"
+                # shellcheck disable=SC1090
+                source "$venv"
+                ACTIVATED=1
+                break
+              fi
             done
+            if [ "$ACTIVATED" -eq 0 ]; then
+              echo "ERROR: no nodevenv found under $HOME/nodevenv/"
+              ls "$HOME/nodevenv/" 2>/dev/null || echo "(nodevenv dir missing)"
+              exit 1
+            fi
 
             echo "Node: $(node -v)  NPM: $(npm -v)"
 
