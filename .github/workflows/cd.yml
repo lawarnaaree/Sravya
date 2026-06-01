@@ -1,24 +1,21 @@
 name: Deploy Server
 
 on:
-  # Only runs after the CI workflow completes successfully on main
+  # Runs after CI completes successfully on main
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
 
-  # Allow manual re-deploy from the Actions tab (e.g. to rollback or force push)
+  # Manual re-deploy from Actions tab (rollback, force push, etc.)
   workflow_dispatch:
 
 jobs:
-  # ── Deploy to cPanel via SSH ──────────────────────────────────────────────
   deploy:
     name: Deploy to cPanel
     runs-on: ubuntu-latest
     environment: production
 
-    # For workflow_run: only proceed if CI passed.
-    # For workflow_dispatch: always proceed (manual trigger).
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
@@ -26,108 +23,90 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # For workflow_run the default SHA is the workflow trigger commit,
-          # not the head commit — pin to the correct one.
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # ── Upload ALL server files via rsync ─────────────────────────────────
-      # Excludes: .env (stays on server), uploads/ (audio files), db/ (SQLite),
-      # node_modules/ (reinstalled on server), tests/ (not needed in prod)
-      - name: Copy server files via SCP to cPanel
+      # ── Copy server/ directory to cPanel app root ────────────────────────────
+      # Result: /home/lawarnaa/sravya-api/server/{index.js,app.js,...}
+      # strip_components is NOT set — we preserve the server/ subdirectory so
+      # Passenger can find the startup file at server/index.js.
+      - name: Copy server files to cPanel
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.CPANEL_SSH_HOST }}
           username: ${{ secrets.CPANEL_SSH_USER }}
           key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
-          source: "server/app.js,server/index.js,server/package.json,server/middleware,server/routes,server/db/database.js"
+          port: ${{ secrets.CPANEL_SSH_PORT }}
+          source: "server/app.js,server/index.js,server/package.json,server/middleware,server/routes,server/db"
           target: ${{ secrets.CPANEL_APP_PATH }}
-          strip_components: 1
 
-      # ── SSH: create dirs, install deps, restart Passenger ─────────────────
-      - name: Bootstrap dirs, install deps, restart app
+      # ── SSH: install deps and restart Passenger ──────────────────────────────
+      - name: Install dependencies and restart app
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CPANEL_SSH_HOST }}
           username: ${{ secrets.CPANEL_SSH_USER }}
           key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
+          port: ${{ secrets.CPANEL_SSH_PORT }}
           script: |
             set -e
 
-            # Activate the cPanel CloudLinux Node.js virtual environment.
-            # cPanel's "Setup Node.js App" installs Node into:
-            #   ~/nodevenv/<app-dir-basename>/<major-version>/bin/
-            APP_DIR=$(basename "${{ secrets.CPANEL_APP_PATH }}")
-            ACTIVATE=""
-            for venv in "$HOME/nodevenv/$APP_DIR"/*/bin/activate; do
-              if [ -f "$venv" ]; then
-                ACTIVATE="$venv"
-              fi
+            APP_PATH="${{ secrets.CPANEL_APP_PATH }}"
+
+            # Activate cPanel's CloudLinux Node.js virtual environment.
+            # cPanel installs a per-app venv at: ~/nodevenv/<app-basename>/<major-ver>/
+            APP_BASENAME=$(basename "$APP_PATH")
+            for venv in "$HOME/nodevenv/$APP_BASENAME"/*/bin/activate; do
+              [ -f "$venv" ] && source "$venv" && break
             done
 
-            if [ -n "$ACTIVATE" ]; then
-              echo "Activating Node.js virtual environment: $ACTIVATE"
-              source "$ACTIVATE"
-            else
-              echo "WARNING: No nodevenv activation script found, trying PATH as-is"
-            fi
+            echo "Node: $(node -v)  NPM: $(npm -v)"
 
-            echo "Using node $(node -v) / npm $(npm -v)"
+            # Create runtime directories (idempotent)
+            mkdir -p "$HOME/sravya-data/uploads"
+            mkdir -p "$HOME/sravya-data/covers"
+            mkdir -p "$APP_PATH/tmp"
 
-            cd ${{ secrets.CPANEL_APP_PATH }}
+            # Install/update production dependencies inside the server/ folder
+            cd "$APP_PATH/server"
+            npm install --omit=dev
 
-            # Create all directories the app needs on first deploy
-            mkdir -p uploads/tracks
-            mkdir -p uploads/covers
-            mkdir -p db
-            mkdir -p tmp
+            # Signal Phusion Passenger to restart the app
+            touch "$APP_PATH/tmp/restart.txt"
 
-            # Install / update production dependencies
-            npm install --production
+            echo "Deploy complete at $(date -u)"
 
-            # Phusion Passenger restart signal
-            touch tmp/restart.txt
-
-            echo "✓ Deploy complete at $(date)"
-
-  # ── E2E smoke test: confirm the live API responds ─────────────────────────
+  # ── Live smoke test after deploy ─────────────────────────────────────────────
   smoke-test:
-    name: E2E Smoke Test
+    name: Smoke Test
     runs-on: ubuntu-latest
     needs: deploy
 
     steps:
-      - name: Wait for Passenger to restart
-        run: sleep 20
+      - name: Wait for Passenger restart
+        run: sleep 15
 
-      - name: GET /api/health
+      - name: Health check
         run: |
-          URL="${{ secrets.CPANEL_API_URL }}/api/health"
-          # Fallback if CPANEL_API_URL secret is not set
-          if [ -z "${{ secrets.CPANEL_API_URL }}" ]; then
-            URL="https://api.${{ secrets.CPANEL_SSH_HOST }}/api/health"
-          fi
-          echo "Checking $URL"
-          BODY=$(curl -s --max-time 30 "$URL" || echo "CURL_FAILED")
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
+          URL="https://sravya.api.lawarnaaree.com.np/api/health"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL")
+          BODY=$(curl -s --max-time 30 "$URL")
+          echo "Status: $STATUS | Body: $BODY"
+          [ "$STATUS" = "200" ] || { echo "FAIL: expected 200"; exit 1; }
+          echo "Health check passed ✓"
+
+      - name: Auth gate check (expect 401)
+        run: |
+          URL="https://sravya.api.lawarnaaree.com.np/api/tracks"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL")
           echo "Status: $STATUS"
-          echo "Body: $BODY"
-          if [ "$STATUS" != "200" ]; then
-            echo "FAILED: expected 200, got $STATUS"
-            exit 1
-          fi
-          echo "Smoke test passed ✓"
-
-      - name: GET /api/tracks (auth check)
-        run: |
-          URL="${{ secrets.CPANEL_API_URL }}/api/tracks"
-          if [ -z "${{ secrets.CPANEL_API_URL }}" ]; then
-            URL="https://api.${{ secrets.CPANEL_SSH_HOST }}/api/tracks"
-          fi
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
-          if [ "$STATUS" != "401" ]; then
-            echo "FAILED: unauthenticated request should return 401, got $STATUS"
-            exit 1
-          fi
+          [ "$STATUS" = "401" ] || { echo "FAIL: expected 401, got $STATUS"; exit 1; }
           echo "Auth check passed ✓"
+
+      - name: Authenticated request check (expect 200)
+        run: |
+          URL="https://sravya.api.lawarnaaree.com.np/api/tracks"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            -H "Authorization: Bearer ${{ secrets.CPANEL_API_KEY }}" "$URL")
+          echo "Status: $STATUS"
+          [ "$STATUS" = "200" ] || { echo "FAIL: expected 200, got $STATUS"; exit 1; }
+          echo "Authenticated check passed ✓"
