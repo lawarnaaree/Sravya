@@ -20,7 +20,7 @@ pub fn verify_request(
     window_secs: u64,
 ) -> bool {
     let now = chrono::Utc::now().timestamp() as u64;
-    if now.saturating_sub(timestamp) > window_secs && timestamp.saturating_sub(now) > window_secs {
+    if now.saturating_sub(timestamp) > window_secs || timestamp.saturating_sub(now) > window_secs {
         return false;
     }
     let msg = format!("{}:{}:{}", method, path, timestamp);
@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn round_trip_signature() {
         let key = b"test-key-bytes-32-characters-ok!";
-        let ts = 1_748_000_000u64;
+        let ts = chrono::Utc::now().timestamp() as u64;
         let sig = sign_request("GET", "/sync/changes", ts, key);
         assert!(verify_request("GET", "/sync/changes", ts, &sig, key, 30));
     }
@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn wrong_signature_rejected() {
         let key = b"test-key-bytes-32-characters-ok!";
-        let ts = 1_748_000_000u64;
+        let ts = chrono::Utc::now().timestamp() as u64;
         assert!(!verify_request(
             "GET",
             "/sync/changes",

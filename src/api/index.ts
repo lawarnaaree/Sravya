@@ -132,6 +132,32 @@ export interface PairingInfo {
   serverAddress: string;
 }
 
+// ── Cloud sync types ───────────────────────────────────────────────────────
+
+export interface CloudSettings {
+  apiUrl?: string;
+  apiKey?: string;
+  autoSync: boolean;
+}
+
+export interface CloudSyncStatus {
+  isConfigured: boolean;
+  lastSyncedAt?: string;
+  isSyncing: boolean;
+}
+
+export interface CloudUploadReport {
+  uploaded: number;
+  skipped: number;
+  errors: number;
+}
+
+export interface CloudPullReport {
+  added: number;
+  skipped: number;
+  errors: number;
+}
+
 // ── Phase 2 types ──────────────────────────────────────────────────────────
 
 export interface LyricsLine {
@@ -220,32 +246,26 @@ export const api = {
     getPairedDevices: () => invoke<PairedDevice[]>("get_paired_devices"),
     revokeDevice: (deviceId: string) => invoke<void>("revoke_device", { deviceId }),
     discoverServers: async (timeoutSecs?: number) => {
-      // Dummy fetch to trigger the iOS Local Network permission prompt
+      // Best-effort: triggers the iOS Local Network prompt; safe to ignore if it fails.
       try {
-        const controller = new AbortController();
-        setTimeout(() => controller.abort(), 200);
-        await fetch("http://192.168.254.254", { mode: "no-cors", signal: controller.signal });
-      } catch (e) {}
+        await invoke("trigger_local_network_prompt");
+      } catch {
+        // ignored
+      }
       return invoke<DiscoveredServer[]>("discover_servers", { timeoutSecs: timeoutSecs ?? 5 });
     },
-    initiatePairing: async (serverUrl: string) => {
-      const resp = await fetch(`${serverUrl}/pairing/begin`, { method: "POST" });
-      if (!resp.ok) throw new Error("Failed to initiate pairing");
-      return resp.json();
-    },
+    initiatePairing: (serverUrl: string) =>
+      invoke<{ challenge: string; serverName: string }>("pairing_begin_remote", { serverUrl }),
     completePairing: async (serverUrl: string, deviceName: string, challenge: string) => {
-      const [pubkey, challengeSig] = await invoke<[string, string]>("sign_pairing_challenge", { challenge });
-      const resp = await fetch(`${serverUrl}/pairing/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceName,
-          devicePubkey: pubkey,
-          challengeSig,
-        }),
+      const [pubkey, challengeSig] = await invoke<[string, string]>("sign_pairing_challenge", {
+        challenge,
       });
-      if (!resp.ok) throw new Error("Pairing failed");
-      const data = await resp.json();
+      const data = await invoke<{ success: boolean; deviceId?: string }>("pairing_confirm_remote", {
+        serverUrl,
+        deviceName,
+        devicePubkey: pubkey,
+        challengeSig,
+      });
       if (data.success && data.deviceId) {
         await invoke("save_lan_server", { serverUrl, deviceId: data.deviceId, pubkey });
       }
@@ -255,5 +275,15 @@ export const api = {
     getSyncStatus: () =>
       invoke<{ isPaired: boolean; lastSyncedAt?: string }>("get_lan_sync_status"),
     importUrl: (url: string) => invoke<{ jobId: string }>("import_url_remote", { url }),
+  },
+
+  cloud: {
+    getSettings: () => invoke<CloudSettings>("get_cloud_settings"),
+    setSettings: (apiUrl: string, apiKey: string, autoSync: boolean) =>
+      invoke<void>("set_cloud_settings", { apiUrl, apiKey, autoSync }),
+    getStatus: () => invoke<CloudSyncStatus>("get_cloud_sync_status"),
+    uploadTrack: (trackId: string) => invoke<void>("upload_track_to_cloud", { trackId }),
+    syncAll: () => invoke<CloudUploadReport>("sync_all_to_cloud"),
+    pull: () => invoke<CloudPullReport>("pull_from_cloud"),
   },
 };

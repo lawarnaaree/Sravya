@@ -1,11 +1,26 @@
-import { useState } from "react";
-import { Wifi, WifiOff, RefreshCw, CheckCircle, Loader2, Smartphone, QrCode } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  CheckCircle,
+  Loader2,
+  Smartphone,
+  QrCode,
+  ChevronDown,
+  ChevronRight,
+  Cloud,
+  CloudDownload,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import {
   scan,
   Format,
   checkPermissions,
   requestPermissions,
 } from "@tauri-apps/plugin-barcode-scanner";
+import { listen } from "@tauri-apps/api/event";
 import { api } from "@/api";
 import { useLanSyncStore, type DiscoveredServer } from "@/state/lanSync";
 import type { LanSyncReport } from "@/api";
@@ -20,6 +35,44 @@ function parsePairingUri(uri: string): { serverAddress: string; challenge: strin
   const challenge = u.searchParams.get("challenge");
   if (!host || !port || !challenge) return null;
   return { serverAddress: `http://${host}:${port}`, challenge };
+}
+
+function HotspotInstructions() {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="mt-4 rounded-xl border" style={{ borderColor: "var(--border)" }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+        style={{ color: "var(--text)" }}
+      >
+        <span className="flex items-center gap-2">
+          <Smartphone size={16} style={{ color: "var(--gold)" }} />
+          Direct Connection (No Router)
+        </span>
+        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="mb-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+            No shared WiFi needed. Works like SHAREit — iPhone becomes the router.
+          </p>
+          <ol className="flex list-decimal flex-col gap-2 pl-4">
+            <li>
+              On iPhone: <strong>Settings → Personal Hotspot → Allow Others to Join ✓</strong>
+            </li>
+            <li>
+              On Windows: <strong>WiFi → connect to &quot;[Your Name]&apos;s iPhone&quot;</strong>
+            </li>
+            <li>
+              Tap <strong>&quot;Find Desktop&quot;</strong> above
+            </li>
+          </ol>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
@@ -154,9 +207,17 @@ function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
       )}
 
       {error && (
-        <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>
-          {error}
-        </p>
+        <div className="mb-3">
+          <p className="text-sm" style={{ color: "#ef4444" }}>
+            {error}
+          </p>
+          {(error.includes("Cannot reach") || error.includes("request failed")) && (
+            <p className="mt-1 text-xs" style={{ color: "var(--text-subtle)" }}>
+              Check that Windows Firewall allows Sravya (port 41892 TCP inbound), or use Hotspot
+              Mode below.
+            </p>
+          )}
+        </div>
       )}
 
       {discoveredServers.length > 0 && (
@@ -197,6 +258,8 @@ function DiscoveryPanel({ onPaired }: { onPaired: () => void }) {
           ))}
         </div>
       )}
+
+      <HotspotInstructions />
     </div>
   );
 }
@@ -324,8 +387,292 @@ function SyncStatusPanel() {
   );
 }
 
+function CloudSyncPanel() {
+  const [showKey, setShowKey] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [keyInput, setKeyInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [pulling, setPulling] = useState(false);
+  const [pullProgress, setPullProgress] = useState(0);
+  const [fileProgress, setFileProgress] = useState<Record<string, number>>({});
+  const [pullResult, setPullResult] = useState<{
+    added: number;
+    skipped: number;
+    errors: number;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [configured, setConfigured] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.cloud
+      .getSettings()
+      .then((s) => {
+        if (s.apiUrl) {
+          setUrlInput(s.apiUrl);
+          setConfigured(true);
+        }
+        if (s.apiKey) setKeyInput(s.apiKey);
+      })
+      .catch(() => {});
+    api.cloud
+      .getStatus()
+      .then((s) => {
+        setConfigured(s.isConfigured);
+        setLastSyncedAt(s.lastSyncedAt ?? null);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const unlisteners = [
+      listen<{ progress: number }>("cloud-sync-progress", (e) =>
+        setPullProgress(e.payload.progress)
+      ),
+      listen<{ hash: string; progress: number }>("cloud-sync-file-progress", (e) => {
+        setFileProgress((prev) => ({ ...prev, [e.payload.hash]: e.payload.progress }));
+      }),
+      listen<{ added: number; skipped: number; errors: number; error?: string }>(
+        "cloud-sync-complete",
+        (e) => {
+          setPulling(false);
+          setPullProgress(0);
+          setFileProgress({});
+          if (e.payload.error) {
+            setError("Could not reach server. Check your URL and API key.");
+          } else {
+            setPullResult(e.payload);
+            setLastSyncedAt(new Date().toISOString());
+          }
+        }
+      ),
+    ];
+    return () => {
+      unlisteners.forEach((p) => p.then((fn) => fn()));
+    };
+  }, []);
+
+  const handleSaveAndConnect = async () => {
+    if (!urlInput.trim() || !keyInput.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.cloud.setSettings(urlInput.trim(), keyInput.trim(), true);
+      setConfigured(true);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePull = async () => {
+    setPulling(true);
+    setPullResult(null);
+    setError(null);
+    setPullProgress(0);
+    setFileProgress({});
+    try {
+      const report = await api.cloud.pull();
+      setPullResult(report);
+      setLastSyncedAt(new Date().toISOString());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  if (!configured) {
+    return (
+      <div>
+        <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
+          Connect to your personal server to sync music from anywhere — no WiFi required.
+        </p>
+
+        <div className="mb-3">
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-subtle)" }}>
+            Server URL
+          </label>
+          <input
+            type="url"
+            placeholder="https://api.lawarnaaree.com.np"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            className="w-full rounded-xl px-4 py-3 font-mono text-sm outline-none"
+            style={{
+              background: "var(--surface-raised)",
+              border: "1px solid var(--border)",
+              color: "var(--text)",
+            }}
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-subtle)" }}>
+            API Key
+          </label>
+          <div className="flex gap-2">
+            <input
+              type={showKey ? "text" : "password"}
+              placeholder="Paste your API key"
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              className="min-w-0 flex-1 rounded-xl px-4 py-3 font-mono text-sm outline-none"
+              style={{
+                background: "var(--surface-raised)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            />
+            <button
+              onClick={() => setShowKey((v) => !v)}
+              className="shrink-0 rounded-xl px-3 py-3"
+              style={{
+                background: "var(--surface-raised)",
+                border: "1px solid var(--border)",
+                color: "var(--text-subtle)",
+              }}
+            >
+              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>
+            {error}
+          </p>
+        )}
+
+        <button
+          onClick={handleSaveAndConnect}
+          disabled={saving || !urlInput.trim() || !keyInput.trim()}
+          className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
+          style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Cloud size={16} />}
+          Connect
+        </button>
+      </div>
+    );
+  }
+
+  const activeFiles = Object.entries(fileProgress).filter(([, p]) => p < 1);
+
+  return (
+    <div>
+      <div
+        className="mb-4 flex items-center gap-3 rounded-xl p-4"
+        style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
+      >
+        <Cloud size={20} style={{ color: "var(--gold)", flexShrink: 0 }} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+            Connected to cloud
+          </p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            {lastSyncedAt
+              ? `Last pulled ${new Date(lastSyncedAt).toLocaleString()}`
+              : "Never pulled"}
+          </p>
+        </div>
+        <button
+          onClick={() => setConfigured(false)}
+          className="shrink-0 text-xs underline"
+          style={{ color: "var(--text-subtle)" }}
+        >
+          Change
+        </button>
+      </div>
+
+      {pulling && (
+        <div className="mb-4">
+          <div className="mb-1 flex items-center justify-between">
+            <span
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <Loader2 size={11} className="animate-spin" />
+              Downloading…
+            </span>
+            <span className="text-xs tabular-nums" style={{ color: "var(--text-subtle)" }}>
+              {Math.round(pullProgress * 100)}%
+            </span>
+          </div>
+          <div
+            className="h-1 overflow-hidden rounded-full"
+            style={{ background: "var(--overlay)" }}
+          >
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{ width: `${pullProgress * 100}%`, background: "var(--gold)" }}
+            />
+          </div>
+          {activeFiles.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              {activeFiles.slice(0, 3).map(([hash, p]) => (
+                <div key={hash} className="flex items-center gap-2">
+                  <div
+                    className="h-0.5 flex-1 overflow-hidden rounded-full"
+                    style={{ background: "var(--overlay)" }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${p * 100}%`, background: "var(--gold)", opacity: 0.6 }}
+                    />
+                  </div>
+                  <span
+                    className="w-8 text-right text-[10px] tabular-nums"
+                    style={{ color: "var(--text-subtle)" }}
+                  >
+                    {Math.round(p * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {pullResult && !pulling && (
+        <div className="mb-4 rounded-xl px-4 py-3" style={{ background: "var(--surface-raised)" }}>
+          <p className="text-sm" style={{ color: "var(--text)" }}>
+            {pullResult.added} new tracks · {pullResult.skipped} already downloaded
+            {pullResult.errors > 0 && ` · ${pullResult.errors} errors`}
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <p className="mb-3 text-sm" style={{ color: "#ef4444" }}>
+          {error}
+        </p>
+      )}
+
+      <button
+        onClick={handlePull}
+        disabled={pulling}
+        className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all disabled:opacity-60"
+        style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
+      >
+        {pulling ? (
+          <>
+            <Loader2 size={16} className="animate-spin" /> Downloading…
+          </>
+        ) : (
+          <>
+            <CloudDownload size={16} /> Pull from Cloud
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
 export default function Sync() {
   const { isPaired, setPaired } = useLanSyncStore();
+  const [tab, setTab] = useState<"wifi" | "cloud">("wifi");
 
   return (
     <div className="h-full overflow-auto">
@@ -333,26 +680,51 @@ export default function Sync() {
         <h1 className="mb-2 text-2xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
           Library Sync
         </h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--text-muted)" }}>
-          Syncs music from your computer to this iPhone over WiFi. No cloud required.
+        <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
+          Get your music onto this iPhone.
         </p>
+
+        {/* Tab bar */}
+        <div
+          className="mb-5 flex rounded-xl p-1"
+          style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
+        >
+          {(["wifi", "cloud"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg py-2 text-sm font-semibold transition-all"
+              style={{
+                background: tab === t ? "var(--gold)" : "transparent",
+                color: tab === t ? "var(--text-on-gold)" : "var(--text-subtle)",
+              }}
+            >
+              {t === "wifi" ? <Wifi size={14} /> : <Cloud size={14} />}
+              {t === "wifi" ? "WiFi (LAN)" : "Cloud"}
+            </button>
+          ))}
+        </div>
 
         <div
           className="rounded-2xl p-5"
           style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
         >
-          {isPaired ? (
-            <SyncStatusPanel />
+          {tab === "wifi" ? (
+            isPaired ? (
+              <SyncStatusPanel />
+            ) : (
+              <>
+                <div className="mb-4 flex items-center gap-2">
+                  <WifiOff size={16} style={{ color: "var(--text-subtle)" }} />
+                  <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                    Not connected
+                  </span>
+                </div>
+                <DiscoveryPanel onPaired={() => setPaired("", "Desktop")} />
+              </>
+            )
           ) : (
-            <>
-              <div className="mb-4 flex items-center gap-2">
-                <WifiOff size={16} style={{ color: "var(--text-subtle)" }} />
-                <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                  Not connected
-                </span>
-              </div>
-              <DiscoveryPanel onPaired={() => setPaired("", "Desktop")} />
-            </>
+            <CloudSyncPanel />
           )}
         </div>
       </div>

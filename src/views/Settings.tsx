@@ -11,6 +11,11 @@ import {
   Sun,
   QrCode,
   Smartphone,
+  Cloud,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/api";
@@ -250,9 +255,213 @@ function DevicePairingSection() {
   );
 }
 
+function CloudSyncSection() {
+  const queryClient = useQueryClient();
+  const [showKey, setShowKey] = useState(false);
+  const [form, setForm] = useState<{ apiUrl: string; apiKey: string; autoSync: boolean } | null>(
+    null
+  );
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    uploaded: number;
+    skipped: number;
+    errors: number;
+  } | null>(null);
+
+  const { data: settings } = useQuery({
+    queryKey: ["cloud-settings"],
+    queryFn: () => api.cloud.getSettings(),
+    select: (s) => ({ apiUrl: s.apiUrl ?? "", apiKey: s.apiKey ?? "", autoSync: s.autoSync }),
+  });
+
+  const { data: status } = useQuery({
+    queryKey: ["cloud-status"],
+    queryFn: () => api.cloud.getStatus(),
+    refetchInterval: 10_000,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (v: { apiUrl: string; apiKey: string; autoSync: boolean }) =>
+      api.cloud.setSettings(v.apiUrl, v.apiKey, v.autoSync),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cloud-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["cloud-status"] });
+      setForm(null);
+    },
+  });
+
+  const values = form ?? settings ?? { apiUrl: "", apiKey: "", autoSync: false };
+
+  const handleSyncAll = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const report = await api.cloud.syncAll();
+      setSyncResult(report);
+      queryClient.invalidateQueries({ queryKey: ["cloud-status"] });
+    } catch (e) {
+      console.error("cloud sync failed:", e);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <section className="mb-6">
+      <h2
+        className="mb-3 text-sm font-semibold tracking-wider uppercase"
+        style={{ color: "var(--text-subtle)", letterSpacing: "0.1em" }}
+      >
+        Cloud Sync
+      </h2>
+      <div
+        className="rounded-xl p-4"
+        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+      >
+        <p className="mb-4 text-sm" style={{ color: "var(--text-muted)" }}>
+          Uploads your music to your personal server so your iPhone can pull tracks from anywhere —
+          not just over WiFi.
+        </p>
+
+        {/* Server URL */}
+        <div className="mb-3">
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-subtle)" }}>
+            Server URL
+          </label>
+          <input
+            type="url"
+            placeholder="https://api.lawarnaaree.com.np"
+            value={values.apiUrl}
+            onChange={(e) => setForm({ ...values, apiUrl: e.target.value })}
+            className="w-full rounded-lg px-3 py-2 font-mono text-sm outline-none"
+            style={{
+              background: "var(--surface-raised)",
+              border: "1px solid var(--border)",
+              color: "var(--text)",
+            }}
+          />
+        </div>
+
+        {/* API Key */}
+        <div className="mb-3">
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-subtle)" }}>
+            API Key
+          </label>
+          <div className="flex gap-2">
+            <input
+              type={showKey ? "text" : "password"}
+              placeholder="Paste your API key"
+              value={values.apiKey}
+              onChange={(e) => setForm({ ...values, apiKey: e.target.value })}
+              className="min-w-0 flex-1 rounded-lg px-3 py-2 font-mono text-sm outline-none"
+              style={{
+                background: "var(--surface-raised)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            />
+            <button
+              onClick={() => setShowKey((v) => !v)}
+              className="shrink-0 rounded-lg px-3 py-2 text-sm transition-opacity"
+              style={{
+                background: "var(--surface-raised)",
+                border: "1px solid var(--border)",
+                color: "var(--text-subtle)",
+              }}
+              aria-label={showKey ? "Hide key" : "Show key"}
+            >
+              {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Auto-sync toggle */}
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-sm" style={{ color: "var(--text)" }}>
+            Auto-sync after download
+          </span>
+          <button
+            onClick={() => setForm({ ...values, autoSync: !values.autoSync })}
+            className="relative h-6 w-11 rounded-full transition-colors"
+            style={{ background: values.autoSync ? "var(--gold)" : "var(--overlay)" }}
+            role="switch"
+            aria-checked={values.autoSync}
+          >
+            <span
+              className="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
+              style={{
+                transform: values.autoSync ? "translateX(1.25rem)" : "translateX(0.125rem)",
+              }}
+            />
+          </button>
+        </div>
+
+        {/* Save button */}
+        {form && (
+          <button
+            onClick={() => saveMutation.mutate(form)}
+            disabled={saveMutation.isPending}
+            className="mb-4 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+            style={{ background: "var(--gold)", color: "var(--text-on-gold)" }}
+          >
+            {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+            Save Settings
+          </button>
+        )}
+
+        {/* Status + sync button */}
+        <div className="flex items-center gap-3">
+          {status?.isConfigured ? (
+            <>
+              {status.lastSyncedAt && (
+                <div
+                  className="flex items-center gap-1.5 text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <CheckCircle2 size={12} style={{ color: "#22c55e" }} />
+                  Last synced {new Date(status.lastSyncedAt).toLocaleString()}
+                </div>
+              )}
+              <button
+                onClick={handleSyncAll}
+                disabled={syncing}
+                className="ml-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+                style={{
+                  background: "var(--surface-raised)",
+                  color: "var(--text)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                Sync All Now
+              </button>
+            </>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--text-subtle)" }}
+            >
+              <Cloud size={12} />
+              Enter server URL and API key above to enable cloud sync
+            </div>
+          )}
+        </div>
+
+        {syncResult && (
+          <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
+            Done — {syncResult.uploaded} uploaded, {syncResult.skipped} skipped
+            {syncResult.errors > 0 ? `, ${syncResult.errors} errors` : ""}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function Settings() {
   const queryClient = useQueryClient();
   const [addingFolder, setAddingFolder] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const { theme, setTheme } = useTheme();
 
   const { data: stats } = useQuery({
@@ -278,13 +487,14 @@ export default function Settings() {
 
   const handleAddFolder = async () => {
     setAddingFolder(true);
+    setFolderError(null);
     try {
       const selected = await open({ directory: true, multiple: false });
       if (typeof selected === "string" && selected) {
         await addFolderMutation.mutateAsync(selected);
       }
     } catch (e) {
-      console.error("Failed to add folder:", e);
+      setFolderError(`Failed to add folder: ${String(e)}`);
     } finally {
       setAddingFolder(false);
     }
@@ -541,6 +751,11 @@ export default function Settings() {
               )}
               Add Folder
             </button>
+            {folderError && (
+              <p className="mt-2 text-xs" style={{ color: "#ef4444" }}>
+                {folderError}
+              </p>
+            )}
           </div>
         </section>
 
@@ -568,6 +783,9 @@ export default function Settings() {
 
         {/* Device Pairing */}
         <DevicePairingSection />
+
+        {/* Cloud Sync */}
+        <CloudSyncSection />
 
         {/* Connected accounts */}
         <section>

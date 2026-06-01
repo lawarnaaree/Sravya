@@ -1,0 +1,23 @@
+{
+  "name": "sravya-api",
+  "version": "1.0.0",
+  "description": "Sravya cloud sync API server",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "node --test tests/api.test.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.0.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}

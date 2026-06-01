@@ -4,6 +4,9 @@ use std::time::Duration;
 use crate::lan::protocol::DiscoveredServer;
 
 pub fn advertise(port: u16, server_name: &str, ip: &str) -> anyhow::Result<ServiceDaemon> {
+    if ip.is_empty() || ip == "0.0.0.0" {
+        anyhow::bail!("refusing to advertise mDNS with unusable IP {ip:?}");
+    }
     let mdns = ServiceDaemon::new()?;
     let host_name = format!("{}.local.", server_name.replace(" ", "-"));
     let service = ServiceInfo::new(

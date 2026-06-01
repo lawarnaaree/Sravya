@@ -1,4 +1,5 @@
 mod adapters;
+pub mod cloud;
 mod commands;
 mod core;
 mod crypto;
@@ -68,6 +69,24 @@ pub fn run() {
             let db_path = data_dir.join("library.db");
             let db = tauri::async_runtime::block_on(adapters::db::connect(&db_path))
                 .expect("failed to connect to SQLite database");
+
+            {
+                let db_clone = db.clone();
+                let covers_clone = covers_dir.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Ok(folders) = adapters::db::get_watched_folders(&db_clone).await {
+                        for folder in folders {
+                            let _ = adapters::fs_scan::scan_folder(
+                                &db_clone,
+                                &folder,
+                                &covers_clone,
+                                |_| {},
+                            )
+                            .await;
+                        }
+                    }
+                });
+            }
 
             let audio = Arc::new(AudioEngine::new());
 
@@ -150,14 +169,26 @@ pub fn run() {
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         let port = port_poll.load(Ordering::SeqCst);
                         if port != 0 {
+                            #[cfg(windows)]
+                            ensure_lan_firewall_rule(port);
+
                             let server_name = std::env::var("COMPUTERNAME")
                                 .or_else(|_| std::env::var("HOSTNAME"))
                                 .map(|h| format!("Sravya-{}", h))
                                 .unwrap_or_else(|_| "Sravya Desktop".to_string());
 
-                            let ip = crate::commands::get_local_ip().unwrap_or_else(|| "".to_string());
+                            let ip = match crate::commands::get_local_ip() {
+                                Some(ip) if !ip.is_empty() && ip != "0.0.0.0" => ip,
+                                _ => {
+                                    tracing::warn!(
+                                        "Skipping mDNS advertise — no usable LAN IP detected"
+                                    );
+                                    break;
+                                }
+                            };
                             match lan::mdns::advertise(port, &server_name, &ip) {
                                 Ok(daemon) => {
+                                    tracing::info!("mDNS advertising Sravya on {ip}:{port}");
                                     // Keep alive — if dropped, mDNS stops advertising.
                                     std::mem::forget(daemon);
                                 }
@@ -232,15 +263,25 @@ pub fn run() {
                     commands::discover_servers,
                     commands::sign_pairing_challenge,
                     commands::save_lan_server,
+                    commands::pairing_begin_remote,
+                    commands::pairing_confirm_remote,
+                    commands::trigger_local_network_prompt,
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,
+                    // cloud sync — desktop
+                    commands::get_cloud_settings,
+                    commands::set_cloud_settings,
+                    commands::get_cloud_sync_status,
+                    commands::upload_track_to_cloud,
+                    commands::sync_all_to_cloud,
+                    commands::pull_from_cloud,
                 ]
             }
             #[cfg(mobile)]
             {
                 tauri::generate_handler![
-                    // library (read-only on iOS — populated via LAN sync)
+                    // library (read-only on iOS — populated via LAN/cloud sync)
                     commands::get_library_stats,
                     commands::get_tracks,
                     commands::get_albums,
@@ -270,12 +311,72 @@ pub fn run() {
                     commands::discover_servers,
                     commands::sign_pairing_challenge,
                     commands::save_lan_server,
+                    commands::pairing_begin_remote,
+                    commands::pairing_confirm_remote,
+                    commands::trigger_local_network_prompt,
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,
+                    // cloud sync — iOS pull
+                    commands::get_cloud_settings,
+                    commands::set_cloud_settings,
+                    commands::get_cloud_sync_status,
+                    commands::pull_from_cloud,
                 ]
             }
         })
         .run(tauri::generate_context!())
         .expect("error while running Sravya");
+}
+
+#[cfg(windows)]
+fn ensure_lan_firewall_rule(port: u16) {
+    // 1. Try to delete the rule first to avoid duplicates
+    let _ = std::process::Command::new("netsh")
+        .args([
+            "advfirewall",
+            "firewall",
+            "delete",
+            "rule",
+            "name=Sravya LAN Sync",
+        ])
+        .output();
+
+    // 2. Add the rule with the current port
+    let add_res = std::process::Command::new("netsh")
+        .args([
+            "advfirewall",
+            "firewall",
+            "add",
+            "rule",
+            "name=Sravya LAN Sync",
+            "dir=in",
+            "action=allow",
+            "protocol=tcp",
+            &format!("localport={}", port),
+        ])
+        .output();
+
+    match add_res {
+        Ok(output) if output.status.success() => {
+            tracing::info!(
+                "Successfully ensured Windows Firewall rule for Sravya LAN Sync on port {port}"
+            );
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::warn!(
+                "Could not register Windows Firewall rule automatically (status: {}). Error: {}. NOTE: If LAN sync fails, please run Sravya as Administrator once or manually allow port {} in Windows Defender Firewall.",
+                output.status,
+                stderr.trim(),
+                port
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Failed to invoke netsh to configure firewall: {e}. If LAN sync fails, please manually allow port {} in Windows Defender Firewall.",
+                port
+            );
+        }
+    }
 }

@@ -9,6 +9,7 @@ use crate::{
         audio::{AudioCommand, QueueEntry},
         db, fs_scan, lrclib, youtube, ytdlp,
     },
+    cloud::{CloudSettings, CloudSyncStatus},
     core::{
         importer::{DownloadJob, ImportRequest, ImportResult},
         library::{Album, Artist, LibraryStats, Track},
@@ -453,6 +454,26 @@ pub async fn import_url(
                 let dir_str = dir.to_string_lossy().into_owned();
                 let _ = fs_scan::scan_folder(&pool, &dir_str, &covers_dir, |_| {}).await;
                 let _ = app_clone.emit(crate::events::LIBRARY_SCAN_COMPLETE, ());
+
+                // Auto-upload to cloud if configured
+                if let Ok(Some(auto)) = db::get_setting(&pool, "cloud_auto_sync").await {
+                    if auto == "true" {
+                        if let (Ok(Some(url)), Ok(Some(key))) = (
+                            db::get_setting(&pool, "cloud_api_url").await,
+                            db::get_setting(&pool, "cloud_api_key").await,
+                        ) {
+                            let pool2 = pool.clone();
+                            let covers2 = covers_dir.clone();
+                            let app2 = app_clone.clone();
+                            tauri::async_runtime::spawn(async move {
+                                crate::cloud::uploader::sync_all(
+                                    &pool2, &covers2, &url, &key, &app2,
+                                )
+                                .await;
+                            });
+                        }
+                    }
+                }
             }
             Err(e) => {
                 tracing::error!("yt-dlp download failed: {e}");
@@ -523,7 +544,11 @@ pub async fn get_lan_server_info(state: State<'_, AppState>) -> Result<serde_jso
         .lan_server_port
         .load(std::sync::atomic::Ordering::SeqCst);
 
-    let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+    let local_ip = get_local_ip().ok_or_else(|| {
+        crate::error::AppError::Other(anyhow::anyhow!(
+            "No usable local IP found. Check network connection."
+        ))
+    })?;
     let server_name = std::env::var("COMPUTERNAME")
         .or_else(|_| std::env::var("HOSTNAME"))
         .map(|h| format!("Sravya-{}", h))
@@ -537,10 +562,35 @@ pub async fn get_lan_server_info(state: State<'_, AppState>) -> Result<serde_jso
 }
 
 pub fn get_local_ip() -> Option<String> {
-    // Connect to an external address without sending data to detect the local interface IP.
-    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("8.8.8.8:80").ok()?;
-    Some(socket.local_addr().ok()?.ip().to_string())
+    // 1. Connect to an external address without sending data to detect the local interface IP (UDP trick).
+    if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(local_addr) = socket.local_addr() {
+                let ip = local_addr.ip().to_string();
+                if !ip.starts_with("127.") && !ip.starts_with("169.254") {
+                    return Some(ip);
+                }
+            }
+        }
+    }
+
+    // 2. Fallback: Enumerate network interfaces directly
+    if let Ok(interfaces) = if_addrs::get_if_addrs() {
+        for iface in interfaces {
+            if iface.is_loopback() {
+                continue;
+            }
+            if let if_addrs::IfAddr::V4(v4_addr) = iface.addr {
+                let ip = v4_addr.ip;
+                // Filter out loopback and link-local (169.254.x.x)
+                if !ip.is_loopback() && !(ip.octets()[0] == 169 && ip.octets()[1] == 254) {
+                    return Some(ip.to_string());
+                }
+            }
+        }
+    }
+
+    None
 }
 
 #[tauri::command]
@@ -552,7 +602,11 @@ pub async fn begin_pairing(state: State<'_, AppState>) -> Result<serde_json::Val
     let port = state
         .lan_server_port
         .load(std::sync::atomic::Ordering::SeqCst);
-    let local_ip = get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+    let local_ip = get_local_ip().ok_or_else(|| {
+        crate::error::AppError::Other(anyhow::anyhow!(
+            "No usable local IP found. Check network connection."
+        ))
+    })?;
 
     // Encode as a pairing URI that the iOS app can scan as a QR code.
     let pairing_uri = format!(
@@ -613,6 +667,73 @@ pub async fn save_lan_server(
         "pubkey": pubkey,
     });
     let _ = db::set_setting(&state.db, "lan_server", &server_info.to_string()).await;
+    Ok(())
+}
+
+// HTTP calls from the iOS WebView are blocked by the Tauri CSP. Routing pairing through
+// reqwest (which runs outside the WebView) sidesteps CSP and preflight entirely.
+#[tauri::command]
+pub async fn pairing_begin_remote(server_url: String) -> Result<serde_json::Value> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    let resp = client
+        .post(format!("{}/pairing/begin", server_url))
+        .send()
+        .await
+        .map_err(|e| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "Cannot reach desktop at {server_url}: {e}"
+            ))
+        })?
+        .error_for_status()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))
+}
+
+#[tauri::command]
+pub async fn pairing_confirm_remote(
+    server_url: String,
+    device_name: String,
+    device_pubkey: String,
+    challenge_sig: String,
+) -> Result<serde_json::Value> {
+    let body = serde_json::json!({
+        "deviceName": device_name,
+        "devicePubkey": device_pubkey,
+        "challengeSig": challenge_sig,
+    });
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    let resp = client
+        .post(format!("{}/pairing/confirm", server_url))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!("Pairing request failed: {e}")))?
+        .error_for_status()
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))
+}
+
+// iOS shows the Local Network permission prompt the first time the app emits any LAN traffic.
+// Opening a UDP socket to a link-local multicast address triggers the prompt without needing
+// to make an HTTP request that the CSP would block.
+#[tauri::command]
+pub async fn trigger_local_network_prompt() -> Result<()> {
+    let _ = tokio::task::spawn_blocking(|| {
+        if let Ok(sock) = std::net::UdpSocket::bind("0.0.0.0:0") {
+            let _ = sock.send_to(b"sravya-prompt", "224.0.0.251:5353");
+        }
+    })
+    .await;
     Ok(())
 }
 
@@ -769,4 +890,130 @@ pub async fn disconnect_provider(_state: State<'_, AppState>, _provider: String)
 #[tauri::command]
 pub async fn trigger_sync(_state: State<'_, AppState>, _provider: String) -> Result<()> {
     Ok(())
+}
+
+// ── Cloud Sync ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_cloud_settings(state: State<'_, AppState>) -> Result<CloudSettings> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url").await?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key").await?;
+    let auto_sync = db::get_setting(&state.db, "cloud_auto_sync")
+        .await?
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    Ok(CloudSettings {
+        api_url,
+        api_key,
+        auto_sync,
+    })
+}
+
+#[tauri::command]
+pub async fn set_cloud_settings(
+    state: State<'_, AppState>,
+    api_url: String,
+    api_key: String,
+    auto_sync: bool,
+) -> Result<()> {
+    db::set_setting(&state.db, "cloud_api_url", &api_url).await?;
+    db::set_setting(&state.db, "cloud_api_key", &api_key).await?;
+    db::set_setting(
+        &state.db,
+        "cloud_auto_sync",
+        if auto_sync { "true" } else { "false" },
+    )
+    .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_cloud_sync_status(state: State<'_, AppState>) -> Result<CloudSyncStatus> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url").await?;
+    let last_synced_at = db::get_setting(&state.db, "cloud_last_synced_at").await?;
+    Ok(CloudSyncStatus {
+        is_configured: api_url.is_some(),
+        last_synced_at,
+        is_syncing: false,
+    })
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn upload_track_to_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    track_id: String,
+) -> Result<()> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+
+    let id = uuid::Uuid::parse_str(&track_id)
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+
+    crate::cloud::uploader::upload_track(
+        &state.db,
+        &state.covers_dir,
+        &api_url,
+        &api_key,
+        id,
+        &app,
+    )
+    .await
+    .map_err(|e| crate::error::AppError::Other(e))?;
+
+    Ok(())
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn sync_all_to_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<crate::cloud::uploader::UploadReport> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+
+    Ok(
+        crate::cloud::uploader::sync_all(&state.db, &state.covers_dir, &api_url, &api_key, &app)
+            .await,
+    )
+}
+
+#[tauri::command]
+pub async fn pull_from_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<crate::cloud::cloud_client::PullReport> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url")
+        .await?
+        .ok_or_else(|| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "Cloud server not configured. Add it in Settings."
+            ))
+        })?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key")
+        .await?
+        .ok_or_else(|| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "Cloud API key not configured. Add it in Settings."
+            ))
+        })?;
+
+    let client = crate::cloud::cloud_client::CloudPullClient {
+        api_url,
+        api_key,
+        db: state.db.clone(),
+        data_dir: state.data_dir.clone(),
+    };
+
+    Ok(client.run_pull(&app).await)
 }
