@@ -102,10 +102,12 @@ jobs:
       - name: Health check
         run: |
           URL="https://sravya.api.lawarnaaree.com.np/api/health"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL")
-          BODY=$(curl -s --max-time 30 "$URL")
-          echo "Status: $STATUS | Body: $BODY"
-          [ "$STATUS" = "200" ] || { echo "FAIL: expected 200"; exit 1; }
+          echo "Checking $URL ..."
+          BODY=$(curl -sv --max-time 30 "$URL" 2>&1) || true
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" 2>/dev/null || echo "000")
+          echo "HTTP status: $STATUS"
+          echo "Response: $BODY"
+          [ "$STATUS" = "200" ] || { echo "FAIL: expected 200, got $STATUS"; exit 1; }
           echo "Health check passed ✓"
 
       - name: Auth gate check (expect 401)
