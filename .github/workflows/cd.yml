@@ -99,14 +99,20 @@ jobs:
 
     steps:
       - name: Wait for Passenger to restart
-        run: sleep 15
+        run: sleep 20
 
       - name: GET /api/health
         run: |
-          URL="https://api.${{ secrets.CPANEL_SSH_HOST }}/api/health"
+          URL="${{ secrets.CPANEL_API_URL }}/api/health"
+          # Fallback if CPANEL_API_URL secret is not set
+          if [ -z "${{ secrets.CPANEL_API_URL }}" ]; then
+            URL="https://api.${{ secrets.CPANEL_SSH_HOST }}/api/health"
+          fi
           echo "Checking $URL"
-          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$URL" || echo "000")
-          echo "Response: $STATUS"
+          BODY=$(curl -s --max-time 30 "$URL" || echo "CURL_FAILED")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
+          echo "Status: $STATUS"
+          echo "Body: $BODY"
           if [ "$STATUS" != "200" ]; then
             echo "FAILED: expected 200, got $STATUS"
             exit 1
@@ -115,8 +121,11 @@ jobs:
 
       - name: GET /api/tracks (auth check)
         run: |
-          URL="https://api.${{ secrets.CPANEL_SSH_HOST }}/api/tracks"
-          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+          URL="${{ secrets.CPANEL_API_URL }}/api/tracks"
+          if [ -z "${{ secrets.CPANEL_API_URL }}" ]; then
+            URL="https://api.${{ secrets.CPANEL_SSH_HOST }}/api/tracks"
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
           if [ "$STATUS" != "401" ]; then
             echo "FAILED: unauthenticated request should return 401, got $STATUS"
             exit 1
