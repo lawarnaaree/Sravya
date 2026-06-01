@@ -53,64 +53,23 @@ jobs:
           key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
           port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
           script: |
-            set -e
-
-            # Try to load user profiles (non-interactive SSH doesn't load them by default)
-            for profile in ~/.bash_profile ~/.bashrc ~/.profile ~/.bash_login /etc/profile; do
-              if [ -f "$profile" ]; then source "$profile" || true; fi
-            done
-
-            # Try to load NVM if it exists
-            if [ -d "$HOME/.nvm" ]; then
-              export NVM_DIR="$HOME/.nvm"
-              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" || true
-            fi
-
-            # If npm is still not found, search in common cPanel / system paths
-            if ! command -v npm &> /dev/null; then
-              echo "npm not found in PATH, searching common system/cPanel directories..."
-              for path in /usr/local/bin/npm /usr/bin/npm /opt/cpanel/ea-nodejs*/bin/npm; do
-                if [ -x "$path" ]; then
-                  echo "Found npm at $path"
-                  export PATH="$(dirname "$path"):$PATH"
-                  break
-                fi
-              done
-            fi
-
-            # If npm is still not found, search the user's home directory (excluding node_modules)
-            if ! command -v npm &> /dev/null; then
-              echo "npm still not found, searching home directory for NVM or virtual environments..."
-              NPM_PATH=$(find "$HOME" -name npm -type f 2>/dev/null | grep -v "node_modules" | head -n 1)
-              if [ -n "$NPM_PATH" ]; then
-                echo "Found npm in home directory at $NPM_PATH"
-                export PATH="$(dirname "$NPM_PATH"):$PATH"
-              fi
-            fi
-
-            # Double check if npm is now found
-            if ! command -v npm &> /dev/null; then
-              echo "ERROR: npm is not installed or not found in standard paths on your cPanel server."
-              exit 1
-            fi
-
-
-            cd ${{ secrets.CPANEL_APP_PATH }}
-
-            # Create all directories the app needs on first deploy and keep them on updates.
-            mkdir -p uploads/tracks
-            mkdir -p uploads/covers
-            mkdir -p db
-            mkdir -p tmp
-
-            # Install / update production dependencies
-            npm install --production --prefer-offline
-
-            # Phusion Passenger restart signal — cPanel picks this up automatically
-            touch tmp/restart.txt
-
-            echo "✓ Deploy complete at $(date)"
-            echo "✓ App path: ${{ secrets.CPANEL_APP_PATH }}"
+            echo "=== PATH ENVIRONMENT ==="
+            echo "PATH: $PATH"
+            echo "USER: $(whoami)"
+            echo "HOME: $HOME"
+            
+            echo "=== COMMON BINARIES ==="
+            which node || echo "node not found in PATH"
+            which npm || echo "npm not found in PATH"
+            
+            echo "=== TESTING COMMON CPANEL PATHS ==="
+            ls -d /opt/cpanel/ea-nodejs* 2>/dev/null || echo "No ea-nodejs directories found in /opt/cpanel"
+            
+            echo "=== HOME DIRECTORY LISTING ==="
+            ls -la "$HOME"
+            
+            echo "=== SEARCHING HOME FOR NODE/NPM ==="
+            find "$HOME" -maxdepth 3 -name "node" -o -name "npm" 2>/dev/null | grep -v "node_modules" || echo "No node/npm binaries found in first 3 levels of home"
 
   # ── E2E smoke test: confirm the live API responds ─────────────────────────
   smoke-test:
