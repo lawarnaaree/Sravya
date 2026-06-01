@@ -44,7 +44,7 @@ lofty = "0.22"
 tantivy = "0.22"
 
 # HTTP
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream", "multipart"], default-features = false }
 futures-util = "0.3"
 
 # LAN sync server

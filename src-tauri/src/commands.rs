@@ -9,6 +9,7 @@ use crate::{
         audio::{AudioCommand, QueueEntry},
         db, fs_scan, lrclib, youtube, ytdlp,
     },
+    cloud::{CloudSettings, CloudSyncStatus},
     core::{
         importer::{DownloadJob, ImportRequest, ImportResult},
         library::{Album, Artist, LibraryStats, Track},
@@ -453,6 +454,26 @@ pub async fn import_url(
                 let dir_str = dir.to_string_lossy().into_owned();
                 let _ = fs_scan::scan_folder(&pool, &dir_str, &covers_dir, |_| {}).await;
                 let _ = app_clone.emit(crate::events::LIBRARY_SCAN_COMPLETE, ());
+
+                // Auto-upload to cloud if configured
+                if let Ok(Some(auto)) = db::get_setting(&pool, "cloud_auto_sync").await {
+                    if auto == "true" {
+                        if let (Ok(Some(url)), Ok(Some(key))) = (
+                            db::get_setting(&pool, "cloud_api_url").await,
+                            db::get_setting(&pool, "cloud_api_key").await,
+                        ) {
+                            let pool2 = pool.clone();
+                            let covers2 = covers_dir.clone();
+                            let app2 = app_clone.clone();
+                            tauri::async_runtime::spawn(async move {
+                                crate::cloud::uploader::sync_all(
+                                    &pool2, &covers2, &url, &key, &app2,
+                                )
+                                .await;
+                            });
+                        }
+                    }
+                }
             }
             Err(e) => {
                 tracing::error!("yt-dlp download failed: {e}");
@@ -869,4 +890,130 @@ pub async fn disconnect_provider(_state: State<'_, AppState>, _provider: String)
 #[tauri::command]
 pub async fn trigger_sync(_state: State<'_, AppState>, _provider: String) -> Result<()> {
     Ok(())
+}
+
+// ── Cloud Sync ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_cloud_settings(state: State<'_, AppState>) -> Result<CloudSettings> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url").await?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key").await?;
+    let auto_sync = db::get_setting(&state.db, "cloud_auto_sync")
+        .await?
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    Ok(CloudSettings {
+        api_url,
+        api_key,
+        auto_sync,
+    })
+}
+
+#[tauri::command]
+pub async fn set_cloud_settings(
+    state: State<'_, AppState>,
+    api_url: String,
+    api_key: String,
+    auto_sync: bool,
+) -> Result<()> {
+    db::set_setting(&state.db, "cloud_api_url", &api_url).await?;
+    db::set_setting(&state.db, "cloud_api_key", &api_key).await?;
+    db::set_setting(
+        &state.db,
+        "cloud_auto_sync",
+        if auto_sync { "true" } else { "false" },
+    )
+    .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_cloud_sync_status(state: State<'_, AppState>) -> Result<CloudSyncStatus> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url").await?;
+    let last_synced_at = db::get_setting(&state.db, "cloud_last_synced_at").await?;
+    Ok(CloudSyncStatus {
+        is_configured: api_url.is_some(),
+        last_synced_at,
+        is_syncing: false,
+    })
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn upload_track_to_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    track_id: String,
+) -> Result<()> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+
+    let id = uuid::Uuid::parse_str(&track_id)
+        .map_err(|e| crate::error::AppError::Other(anyhow::anyhow!(e)))?;
+
+    crate::cloud::uploader::upload_track(
+        &state.db,
+        &state.covers_dir,
+        &api_url,
+        &api_key,
+        id,
+        &app,
+    )
+    .await
+    .map_err(|e| crate::error::AppError::Other(e))?;
+
+    Ok(())
+}
+
+#[cfg(desktop)]
+#[tauri::command]
+pub async fn sync_all_to_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<crate::cloud::uploader::UploadReport> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key")
+        .await?
+        .ok_or_else(|| crate::error::AppError::Other(anyhow::anyhow!("Cloud not configured")))?;
+
+    Ok(
+        crate::cloud::uploader::sync_all(&state.db, &state.covers_dir, &api_url, &api_key, &app)
+            .await,
+    )
+}
+
+#[tauri::command]
+pub async fn pull_from_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<crate::cloud::cloud_client::PullReport> {
+    let api_url = db::get_setting(&state.db, "cloud_api_url")
+        .await?
+        .ok_or_else(|| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "Cloud server not configured. Add it in Settings."
+            ))
+        })?;
+    let api_key = db::get_setting(&state.db, "cloud_api_key")
+        .await?
+        .ok_or_else(|| {
+            crate::error::AppError::Other(anyhow::anyhow!(
+                "Cloud API key not configured. Add it in Settings."
+            ))
+        })?;
+
+    let client = crate::cloud::cloud_client::CloudPullClient {
+        api_url,
+        api_key,
+        db: state.db.clone(),
+        data_dir: state.data_dir.clone(),
+    };
+
+    Ok(client.run_pull(&app).await)
 }

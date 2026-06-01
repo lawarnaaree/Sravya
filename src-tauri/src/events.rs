@@ -14,3 +14,12 @@ pub const LAN_SYNC_PROGRESS: &str = "lan-sync-progress";
 pub const LAN_SYNC_COMPLETE: &str = "lan-sync-complete";
 pub const LAN_SYNC_FILE_PROGRESS: &str = "lan-sync-file-progress";
 pub const LAN_DEVICE_PAIRED: &str = "lan-device-paired";
+
+// Cloud sync events (desktop upload + mobile pull)
+pub const CLOUD_UPLOAD_PROGRESS: &str = "cloud-upload-progress";
+pub const CLOUD_UPLOAD_COMPLETE: &str = "cloud-upload-complete";
+pub const CLOUD_UPLOAD_FAILED: &str = "cloud-upload-failed";
+pub const CLOUD_SYNC_STARTED: &str = "cloud-sync-started";
+pub const CLOUD_SYNC_PROGRESS: &str = "cloud-sync-progress";
+pub const CLOUD_SYNC_COMPLETE: &str = "cloud-sync-complete";
+pub const CLOUD_SYNC_FILE_PROGRESS: &str = "cloud-sync-file-progress";

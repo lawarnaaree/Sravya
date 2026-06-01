@@ -132,6 +132,32 @@ export interface PairingInfo {
   serverAddress: string;
 }
 
+// ── Cloud sync types ───────────────────────────────────────────────────────
+
+export interface CloudSettings {
+  apiUrl?: string;
+  apiKey?: string;
+  autoSync: boolean;
+}
+
+export interface CloudSyncStatus {
+  isConfigured: boolean;
+  lastSyncedAt?: string;
+  isSyncing: boolean;
+}
+
+export interface CloudUploadReport {
+  uploaded: number;
+  skipped: number;
+  errors: number;
+}
+
+export interface CloudPullReport {
+  added: number;
+  skipped: number;
+  errors: number;
+}
+
 // ── Phase 2 types ──────────────────────────────────────────────────────────
 
 export interface LyricsLine {
@@ -249,5 +275,15 @@ export const api = {
     getSyncStatus: () =>
       invoke<{ isPaired: boolean; lastSyncedAt?: string }>("get_lan_sync_status"),
     importUrl: (url: string) => invoke<{ jobId: string }>("import_url_remote", { url }),
+  },
+
+  cloud: {
+    getSettings: () => invoke<CloudSettings>("get_cloud_settings"),
+    setSettings: (apiUrl: string, apiKey: string, autoSync: boolean) =>
+      invoke<void>("set_cloud_settings", { apiUrl, apiKey, autoSync }),
+    getStatus: () => invoke<CloudSyncStatus>("get_cloud_sync_status"),
+    uploadTrack: (trackId: string) => invoke<void>("upload_track_to_cloud", { trackId }),
+    syncAll: () => invoke<CloudUploadReport>("sync_all_to_cloud"),
+    pull: () => invoke<CloudPullReport>("pull_from_cloud"),
   },
 };

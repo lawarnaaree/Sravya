@@ -1,4 +1,5 @@
 mod adapters;
+pub mod cloud;
 mod commands;
 mod core;
 mod crypto;
@@ -268,12 +269,19 @@ pub fn run() {
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,
+                    // cloud sync — desktop
+                    commands::get_cloud_settings,
+                    commands::set_cloud_settings,
+                    commands::get_cloud_sync_status,
+                    commands::upload_track_to_cloud,
+                    commands::sync_all_to_cloud,
+                    commands::pull_from_cloud,
                 ]
             }
             #[cfg(mobile)]
             {
                 tauri::generate_handler![
-                    // library (read-only on iOS — populated via LAN sync)
+                    // library (read-only on iOS — populated via LAN/cloud sync)
                     commands::get_library_stats,
                     commands::get_tracks,
                     commands::get_albums,
@@ -309,6 +317,11 @@ pub fn run() {
                     commands::start_lan_sync,
                     commands::get_lan_sync_status,
                     commands::import_url_remote,
+                    // cloud sync — iOS pull
+                    commands::get_cloud_settings,
+                    commands::set_cloud_settings,
+                    commands::get_cloud_sync_status,
+                    commands::pull_from_cloud,
                 ]
             }
         })
