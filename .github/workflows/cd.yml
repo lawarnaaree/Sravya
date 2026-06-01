@@ -56,20 +56,36 @@ jobs:
             set -e
 
             # Try to load user profiles (non-interactive SSH doesn't load them by default)
-            if [ -f ~/.bash_profile ]; then source ~/.bash_profile; fi
-            if [ -f ~/.bashrc ]; then source ~/.bashrc; fi
-            if [ -f ~/.profile ]; then source ~/.profile; fi
+            for profile in ~/.bash_profile ~/.bashrc ~/.profile ~/.bash_login /etc/profile; do
+              if [ -f "$profile" ]; then source "$profile" || true; fi
+            done
 
-            # If npm is not in PATH, search for cPanel EasyApache Node.js paths
+            # Try to load NVM if it exists
+            if [ -d "$HOME/.nvm" ]; then
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" || true
+            fi
+
+            # If npm is still not found, search in common cPanel / system paths
             if ! command -v npm &> /dev/null; then
-              echo "npm not found in PATH, searching cPanel EasyApache Node.js paths..."
-              for node_dir in /opt/cpanel/ea-nodejs*/bin; do
-                if [ -x "$node_dir/npm" ]; then
-                  echo "Found npm in $node_dir"
-                  export PATH="$node_dir:$PATH"
+              echo "npm not found in PATH, searching common system/cPanel directories..."
+              for path in /usr/local/bin/npm /usr/bin/npm /opt/cpanel/ea-nodejs*/bin/npm; do
+                if [ -x "$path" ]; then
+                  echo "Found npm at $path"
+                  export PATH="$(dirname "$path"):$PATH"
                   break
                 fi
               done
+            fi
+
+            # If npm is still not found, search the user's home directory (excluding node_modules)
+            if ! command -v npm &> /dev/null; then
+              echo "npm still not found, searching home directory for NVM or virtual environments..."
+              NPM_PATH=$(find "$HOME" -name npm -type f 2>/dev/null | grep -v "node_modules" | head -n 1)
+              if [ -n "$NPM_PATH" ]; then
+                echo "Found npm in home directory at $NPM_PATH"
+                export PATH="$(dirname "$NPM_PATH"):$PATH"
+              fi
             fi
 
             # Double check if npm is now found
@@ -77,6 +93,7 @@ jobs:
               echo "ERROR: npm is not installed or not found in standard paths on your cPanel server."
               exit 1
             fi
+
 
             cd ${{ secrets.CPANEL_APP_PATH }}
 
