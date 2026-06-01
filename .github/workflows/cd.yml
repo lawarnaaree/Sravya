@@ -53,23 +53,43 @@ jobs:
           key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
           port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
           script: |
-            echo "=== PATH ENVIRONMENT ==="
-            echo "PATH: $PATH"
-            echo "USER: $(whoami)"
-            echo "HOME: $HOME"
-            
-            echo "=== COMMON BINARIES ==="
-            which node || echo "node not found in PATH"
-            which npm || echo "npm not found in PATH"
-            
-            echo "=== TESTING COMMON CPANEL PATHS ==="
-            ls -d /opt/cpanel/ea-nodejs* 2>/dev/null || echo "No ea-nodejs directories found in /opt/cpanel"
-            
-            echo "=== HOME DIRECTORY LISTING ==="
-            ls -la "$HOME"
-            
-            echo "=== SEARCHING HOME FOR NODE/NPM ==="
-            find "$HOME" -maxdepth 3 -name "node" -o -name "npm" 2>/dev/null | grep -v "node_modules" || echo "No node/npm binaries found in first 3 levels of home"
+            set -e
+
+            # Activate the cPanel CloudLinux Node.js virtual environment.
+            # cPanel's "Setup Node.js App" installs Node into:
+            #   ~/nodevenv/<app-dir-basename>/<major-version>/bin/
+            APP_DIR=$(basename "${{ secrets.CPANEL_APP_PATH }}")
+            ACTIVATE=""
+            for venv in "$HOME/nodevenv/$APP_DIR"/*/bin/activate; do
+              if [ -f "$venv" ]; then
+                ACTIVATE="$venv"
+              fi
+            done
+
+            if [ -n "$ACTIVATE" ]; then
+              echo "Activating Node.js virtual environment: $ACTIVATE"
+              source "$ACTIVATE"
+            else
+              echo "WARNING: No nodevenv activation script found, trying PATH as-is"
+            fi
+
+            echo "Using node $(node -v) / npm $(npm -v)"
+
+            cd ${{ secrets.CPANEL_APP_PATH }}
+
+            # Create all directories the app needs on first deploy
+            mkdir -p uploads/tracks
+            mkdir -p uploads/covers
+            mkdir -p db
+            mkdir -p tmp
+
+            # Install / update production dependencies
+            npm install --production
+
+            # Phusion Passenger restart signal
+            touch tmp/restart.txt
+
+            echo "✓ Deploy complete at $(date)"
 
   # ── E2E smoke test: confirm the live API responds ─────────────────────────
   smoke-test:
