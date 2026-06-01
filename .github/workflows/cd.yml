@@ -94,6 +94,7 @@ jobs:
     name: Smoke Test
     runs-on: ubuntu-latest
     needs: deploy
+    continue-on-error: true  # DNS may still be propagating; deploy is already done
 
     steps:
       - name: Wait for Passenger restart
