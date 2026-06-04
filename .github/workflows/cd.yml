@@ -51,9 +51,9 @@ jobs:
             set -e
 
             APP_PATH="${{ secrets.CPANEL_APP_PATH }}"
+            echo "APP_PATH: '$APP_PATH'"
 
             # Activate cPanel's CloudLinux Node.js virtual environment.
-            # Try app-basename first, then fall back to any venv under ~/nodevenv/.
             APP_BASENAME=$(basename "$APP_PATH")
             ACTIVATED=0
             VENV_ACTIVATE_PATH=""
@@ -78,8 +78,6 @@ jobs:
             echo "Node: $(node -v)  NPM: $(npm -v)"
 
             # Derive venv prefix from the activate script path (.../bin/activate -> ../..).
-            # npm prefix -g resolves to the system alt-nodejs path (/opt/alt/...) which is
-            # read-only; deriving from the activate path gives the user-writable venv root.
             VENV_PREFIX="$(cd "$(dirname "$VENV_ACTIVATE_PATH")/.." && pwd)"
             echo "venv prefix: $VENV_PREFIX"
             export npm_config_prefix="$VENV_PREFIX"
@@ -88,40 +86,47 @@ jobs:
             mkdir -p "$VENV_PREFIX/lib"
             if [ ! -f "$VENV_PREFIX/lib/package.json" ]; then
               echo '{}' > "$VENV_PREFIX/lib/package.json"
-              echo "Created missing venv manifest at $VENV_PREFIX/lib/package.json"
+              echo "Created missing venv manifest"
             fi
 
             # Create runtime directories (idempotent)
             mkdir -p "$HOME/sravya-data/uploads"
             mkdir -p "$HOME/sravya-data/covers"
             mkdir -p "$APP_PATH/tmp"
+            mkdir -p "$APP_PATH/server"
 
-            # Install production dependencies into the server directory.
+            echo "=== server dir ==="
+            ls -la "$APP_PATH/server/" 2>&1
+            echo "=== package.json on server ==="
+            cat "$APP_PATH/server/package.json" 2>&1 || echo "MISSING package.json"
+
+            # Install production dependencies. cwd becomes $APP_PATH/server.
             cd "$APP_PATH/server"
-            npm install --omit=dev
+            rm -f package-lock.json
+            npm install --omit=dev 2>&1
             echo "npm install complete"
 
-            # If packages landed in the venv prefix (cPanel nodevenv model),
-            # link them into the app root so Node.js walks up and finds them.
+            echo "=== node_modules after install ==="
+            ls "$VENV_PREFIX/lib/node_modules/" 2>/dev/null | head -10 || echo "(venv node_modules empty)"
+            ls "./node_modules/" 2>/dev/null | head -10 || echo "(local node_modules empty)"
+
+            # If packages landed in the venv prefix, link them into the app root.
             if [ -d "$VENV_PREFIX/lib/node_modules/express" ]; then
               ln -sfn "$VENV_PREFIX/lib/node_modules" "$APP_PATH/node_modules"
-              echo "Linked node_modules: $APP_PATH/node_modules -> $VENV_PREFIX/lib/node_modules"
-            elif [ -d "$APP_PATH/server/node_modules/express" ]; then
+              echo "Linked: $APP_PATH/node_modules -> $VENV_PREFIX/lib/node_modules"
+            elif [ -d "./node_modules/express" ]; then
               echo "Packages in server/node_modules/ (local install)"
             else
               echo "WARNING: express not found after install"
-              ls "$VENV_PREFIX/lib/node_modules/" 2>/dev/null | head -5 || true
-              ls "$APP_PATH/server/node_modules/" 2>/dev/null | head -5 || true
             fi
 
-            # Write the production .env so index.js can find API_KEY and DATA_DIR.
-            # dotenv loads this file on startup; Passenger doesn't inject env vars here.
+            # Write .env using cwd (already in $APP_PATH/server after the cd above).
             {
               echo "API_KEY=${{ secrets.CPANEL_API_KEY }}"
               echo "DATA_DIR=$HOME/sravya-data"
               echo "NODE_ENV=production"
-            } > "$APP_PATH/server/.env"
-            echo ".env written"
+            } > .env
+            echo ".env written to $(pwd)/.env"
 
             # Signal Phusion Passenger to restart the app
             touch "$APP_PATH/tmp/restart.txt"
