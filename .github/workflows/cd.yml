@@ -56,6 +56,7 @@ jobs:
             # Try app-basename first, then fall back to any venv under ~/nodevenv/.
             APP_BASENAME=$(basename "$APP_PATH")
             ACTIVATED=0
+            VENV_ACTIVATE_PATH=""
             for venv in \
               "$HOME/nodevenv/$APP_BASENAME"/*/bin/activate \
               "$HOME/nodevenv"/*/*/bin/activate; do
@@ -64,6 +65,7 @@ jobs:
                 # shellcheck disable=SC1090
                 source "$venv"
                 ACTIVATED=1
+                VENV_ACTIVATE_PATH="$venv"
                 break
               fi
             done
@@ -75,12 +77,16 @@ jobs:
 
             echo "Node: $(node -v)  NPM: $(npm -v)"
 
-            # cPanel nodevenv's npm v10 reads $PREFIX/lib/package.json at startup
-            # even for local installs. Create it if missing to avoid ENOENT.
-            VENV_PREFIX=$(npm prefix -g 2>/dev/null || echo "")
+            # Derive venv prefix from the activate script path (.../bin/activate -> ../..).
+            # npm prefix -g resolves to the system alt-nodejs path (/opt/alt/...) which is
+            # read-only; deriving from the activate path gives the user-writable venv root.
+            VENV_PREFIX="$(cd "$(dirname "$VENV_ACTIVATE_PATH")/.." && pwd)"
             echo "venv prefix: $VENV_PREFIX"
-            if [ -n "$VENV_PREFIX" ] && [ ! -f "$VENV_PREFIX/lib/package.json" ]; then
-              mkdir -p "$VENV_PREFIX/lib"
+            export npm_config_prefix="$VENV_PREFIX"
+
+            # npm v10 reads $npm_config_prefix/lib/package.json at startup; create if missing.
+            mkdir -p "$VENV_PREFIX/lib"
+            if [ ! -f "$VENV_PREFIX/lib/package.json" ]; then
               echo '{}' > "$VENV_PREFIX/lib/package.json"
               echo "Created missing venv manifest at $VENV_PREFIX/lib/package.json"
             fi
@@ -97,11 +103,15 @@ jobs:
 
             # If packages landed in the venv prefix (cPanel nodevenv model),
             # link them into the app root so Node.js walks up and finds them.
-            if [ -n "$VENV_PREFIX" ] && [ -d "$VENV_PREFIX/lib/node_modules/express" ]; then
+            if [ -d "$VENV_PREFIX/lib/node_modules/express" ]; then
               ln -sfn "$VENV_PREFIX/lib/node_modules" "$APP_PATH/node_modules"
               echo "Linked node_modules: $APP_PATH/node_modules -> $VENV_PREFIX/lib/node_modules"
+            elif [ -d "$APP_PATH/server/node_modules/express" ]; then
+              echo "Packages in server/node_modules/ (local install)"
             else
-              echo "Packages appear to be in server/node_modules/ (local install)"
+              echo "WARNING: express not found after install"
+              ls "$VENV_PREFIX/lib/node_modules/" 2>/dev/null | head -5 || true
+              ls "$APP_PATH/server/node_modules/" 2>/dev/null | head -5 || true
             fi
 
             # Write the production .env so index.js can find API_KEY and DATA_DIR.
