@@ -80,20 +80,13 @@ jobs:
             mkdir -p "$HOME/sravya-data/covers"
             mkdir -p "$APP_PATH/tmp"
 
-            # Install/update production dependencies inside the server/ folder
-            cd "$APP_PATH/server"
-            npm install --omit=dev
-
-            # Create the node_modules symlink that cPanel nodevenv expects in the app root.
-            # Packages are installed to the venv's lib/node_modules; Node.js resolves them
-            # by walking up from server/ and finding the symlink at the app root.
-            VENV_PREFIX=$(npm prefix -g 2>/dev/null || echo "")
-            if [ -n "$VENV_PREFIX" ] && [ -d "$VENV_PREFIX/lib/node_modules" ]; then
-              ln -sfn "$VENV_PREFIX/lib/node_modules" "$APP_PATH/node_modules"
-              echo "node_modules linked: $APP_PATH/node_modules -> $VENV_PREFIX/lib/node_modules"
-            else
-              echo "WARNING: could not locate venv lib/node_modules (npm prefix -g = '$VENV_PREFIX')"
-            fi
+            # Install production dependencies.
+            # Use --prefix to install directly into server/node_modules/ so that
+            # require() resolution works regardless of the nodevenv prefix setting.
+            # The venv's node binary is already in PATH from the activate step above,
+            # so native modules (better-sqlite3) compile against the correct Node ABI.
+            npm install --omit=dev --prefix "$APP_PATH/server"
+            echo "npm install complete"
 
             # Write the production .env so index.js can find API_KEY and DATA_DIR.
             # dotenv loads this file on startup; Passenger doesn't inject env vars here.
