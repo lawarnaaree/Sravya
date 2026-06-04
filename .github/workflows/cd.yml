@@ -81,12 +81,16 @@ jobs:
             mkdir -p "$APP_PATH/tmp"
 
             # Install production dependencies.
-            # Use --prefix to install directly into server/node_modules/ so that
-            # require() resolution works regardless of the nodevenv prefix setting.
-            # The venv's node binary is already in PATH from the activate step above,
-            # so native modules (better-sqlite3) compile against the correct Node ABI.
-            npm install --omit=dev --prefix "$APP_PATH/server"
-            echo "npm install complete"
+            # The venv activate script sets NPM_CONFIG_PREFIX to the venv lib dir.
+            # Override it to the app root so npm installs to $APP_PATH/node_modules/
+            # (one level above server/), which Node.js resolves via parent-directory
+            # traversal when requiring from server/index.js.
+            # The venv's node binary is already in PATH so native modules compile
+            # against the correct Node ABI (same version Passenger uses).
+            export NPM_CONFIG_PREFIX="$APP_PATH"
+            cd "$APP_PATH/server"
+            npm install --omit=dev
+            echo "npm install complete — packages at $APP_PATH/node_modules/"
 
             # Write the production .env so index.js can find API_KEY and DATA_DIR.
             # dotenv loads this file on startup; Passenger doesn't inject env vars here.
