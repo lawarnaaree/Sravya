@@ -75,22 +75,34 @@ jobs:
 
             echo "Node: $(node -v)  NPM: $(npm -v)"
 
+            # cPanel nodevenv's npm v10 reads $PREFIX/lib/package.json at startup
+            # even for local installs. Create it if missing to avoid ENOENT.
+            VENV_PREFIX=$(npm prefix -g 2>/dev/null || echo "")
+            echo "venv prefix: $VENV_PREFIX"
+            if [ -n "$VENV_PREFIX" ] && [ ! -f "$VENV_PREFIX/lib/package.json" ]; then
+              mkdir -p "$VENV_PREFIX/lib"
+              echo '{}' > "$VENV_PREFIX/lib/package.json"
+              echo "Created missing venv manifest at $VENV_PREFIX/lib/package.json"
+            fi
+
             # Create runtime directories (idempotent)
             mkdir -p "$HOME/sravya-data/uploads"
             mkdir -p "$HOME/sravya-data/covers"
             mkdir -p "$APP_PATH/tmp"
 
-            # Install production dependencies.
-            # The venv activate script sets NPM_CONFIG_PREFIX to the venv lib dir.
-            # Override it to the app root so npm installs to $APP_PATH/node_modules/
-            # (one level above server/), which Node.js resolves via parent-directory
-            # traversal when requiring from server/index.js.
-            # The venv's node binary is already in PATH so native modules compile
-            # against the correct Node ABI (same version Passenger uses).
-            export NPM_CONFIG_PREFIX="$APP_PATH"
+            # Install production dependencies into the server directory.
             cd "$APP_PATH/server"
             npm install --omit=dev
-            echo "npm install complete — packages at $APP_PATH/node_modules/"
+            echo "npm install complete"
+
+            # If packages landed in the venv prefix (cPanel nodevenv model),
+            # link them into the app root so Node.js walks up and finds them.
+            if [ -n "$VENV_PREFIX" ] && [ -d "$VENV_PREFIX/lib/node_modules/express" ]; then
+              ln -sfn "$VENV_PREFIX/lib/node_modules" "$APP_PATH/node_modules"
+              echo "Linked node_modules: $APP_PATH/node_modules -> $VENV_PREFIX/lib/node_modules"
+            else
+              echo "Packages appear to be in server/node_modules/ (local install)"
+            fi
 
             # Write the production .env so index.js can find API_KEY and DATA_DIR.
             # dotenv loads this file on startup; Passenger doesn't inject env vars here.
