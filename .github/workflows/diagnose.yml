@@ -1,0 +1,69 @@
+name: Diagnose Server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    name: Server Diagnostics
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH Diagnostics
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CPANEL_SSH_HOST }}
+          username: ${{ secrets.CPANEL_SSH_USER }}
+          key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.CPANEL_SSH_PORT }}
+          script: |
+            set +e  # don't exit on error during diagnostics
+            echo "====== WHOAMI / HOME ======"
+            whoami; echo "HOME=$HOME"
+
+            echo "====== HOME DIR ======"
+            ls -la ~/
+
+            echo "====== NODEVENV ======"
+            ls -la ~/nodevenv/ 2>/dev/null || echo "no nodevenv dir"
+            find ~/nodevenv -name activate 2>/dev/null
+
+            echo "====== CPANEL APP CONFIG ======"
+            ls ~/.cpanel/ 2>/dev/null
+            # cPanel stores Node.js apps config here:
+            find ~/.cpanel -name "*.yaml" -o -name "*.json" 2>/dev/null | head -20
+            cat ~/.cpanel/nvmrc 2>/dev/null || true
+            ls ~/.cpanel/node_apps/ 2>/dev/null || true
+
+            echo "====== UAPI NODE APPS ======"
+            uapi NodeJS get_cpanel_apps 2>/dev/null || \
+              /usr/local/cpanel/bin/uapi NodeJS get_cpanel_apps 2>/dev/null || \
+              echo "uapi not available"
+
+            echo "====== FIND SERVER INDEX.JS ======"
+            find ~ -name "index.js" -path "*/server/*" 2>/dev/null | head -10
+
+            echo "====== CPANEL APP PATH (from secret) ======"
+            APP_PATH="${{ secrets.CPANEL_APP_PATH }}"
+            echo "APP_PATH=$APP_PATH"
+            ls -la "$APP_PATH" 2>/dev/null || echo "APP_PATH dir not found"
+            ls -la "$APP_PATH/server/" 2>/dev/null || echo "server/ subdir not found in APP_PATH"
+
+            echo "====== ALL DIRS IN HOME ======"
+            find ~ -maxdepth 2 -type d 2>/dev/null | grep -v "node_modules\|\.git\|cache\|\.cpanel" | head -40
+
+            echo "====== PASSENGER / HTACCESS ======"
+            find ~ -name ".htaccess" 2>/dev/null | head -5 | while read f; do echo "==$f=="; cat "$f"; done
+
+            echo "====== NODE.JS APP LOG ======"
+            find ~ -name "*.log" 2>/dev/null | grep -iv "cpanel\|error_log\|access" | head -3 | while read f; do
+              echo "==$f (last 20 lines)=="
+              tail -20 "$f"
+            done
+            # Also check ~/logs for Passenger logs
+            ls ~/logs/ 2>/dev/null
+            find ~/logs -name "*.log" 2>/dev/null | head -3 | while read f; do
+              echo "==$f (last 30 lines)=="
+              tail -30 "$f"
+            done
+
+            echo "====== DONE ======"
