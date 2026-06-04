@@ -84,6 +84,26 @@ jobs:
             cd "$APP_PATH/server"
             npm install --omit=dev
 
+            # Create the node_modules symlink that cPanel nodevenv expects in the app root.
+            # Packages are installed to the venv's lib/node_modules; Node.js resolves them
+            # by walking up from server/ and finding the symlink at the app root.
+            VENV_PREFIX=$(npm prefix -g 2>/dev/null || echo "")
+            if [ -n "$VENV_PREFIX" ] && [ -d "$VENV_PREFIX/lib/node_modules" ]; then
+              ln -sfn "$VENV_PREFIX/lib/node_modules" "$APP_PATH/node_modules"
+              echo "node_modules linked: $APP_PATH/node_modules -> $VENV_PREFIX/lib/node_modules"
+            else
+              echo "WARNING: could not locate venv lib/node_modules (npm prefix -g = '$VENV_PREFIX')"
+            fi
+
+            # Write the production .env so index.js can find API_KEY and DATA_DIR.
+            # dotenv loads this file on startup; Passenger doesn't inject env vars here.
+            {
+              echo "API_KEY=${{ secrets.CPANEL_API_KEY }}"
+              echo "DATA_DIR=$HOME/sravya-data"
+              echo "NODE_ENV=production"
+            } > "$APP_PATH/server/.env"
+            echo ".env written"
+
             # Signal Phusion Passenger to restart the app
             touch "$APP_PATH/tmp/restart.txt"
 
