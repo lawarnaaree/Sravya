@@ -25,22 +25,40 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # ── Copy server/ directory to cPanel app root ────────────────────────────
-      # Result: /home/lawarnaa/sravya-api/server/{index.js,app.js,...}
-      # strip_components is NOT set — we preserve the server/ subdirectory so
-      # Passenger can find the startup file at server/index.js.
-      - name: Copy server files to cPanel
+      # ── Pre-install JS deps on CI runner ─────────────────────────────────────
+      # Install with --ignore-scripts to skip native compilation (better-sqlite3).
+      # The server will recompile native modules via `npm rebuild` after upload.
+      # This avoids fighting cPanel's npm venv configuration entirely.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install server dependencies (CI)
+        run: |
+          cd server
+          npm install --omit=dev --ignore-scripts 2>&1
+          echo "packages installed:"
+          ls node_modules | head -10
+
+      # ── SCP the server/ directory to cPanel ──────────────────────────────────
+      # source: "server" (a directory, not a glob) + strip_components: 0 makes
+      # drone-scp tar the whole server/ dir and extract it under $target, so files
+      # land at $target/server/index.js, $target/server/package.json, etc.
+      # This preserves the structure Passenger needs for startup file server/index.js.
+      - name: Copy server directory to cPanel
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.CPANEL_SSH_HOST }}
           username: ${{ secrets.CPANEL_SSH_USER }}
           key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
           port: ${{ secrets.CPANEL_SSH_PORT }}
-          source: "server/app.js,server/index.js,server/package.json,server/middleware,server/routes,server/db"
+          source: "server"
           target: ${{ secrets.CPANEL_APP_PATH }}
+          strip_components: 0
 
-      # ── SSH: install deps and restart Passenger ──────────────────────────────
-      - name: Install dependencies and restart app
+      # ── SSH: rebuild native modules, write config, restart Passenger ─────────
+      - name: Rebuild native modules and restart app
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.CPANEL_SSH_HOST }}
@@ -51,14 +69,16 @@ jobs:
             set -e
 
             APP_PATH="${{ secrets.CPANEL_APP_PATH }}"
-            # Strip leading UTF-8 BOM in case the secret was saved with Windows encoding
             APP_PATH="${APP_PATH#$'\xef\xbb\xbf'}"
             echo "APP_PATH: '$APP_PATH'"
 
-            # Activate cPanel's CloudLinux Node.js virtual environment.
+            echo "=== Post-SCP directory listing ==="
+            ls -la "$APP_PATH/" 2>/dev/null || echo "(APP_PATH missing)"
+            ls -la "$APP_PATH/server/" 2>/dev/null || echo "(server/ missing or empty)"
+
+            # Activate cPanel Node.js venv
             APP_BASENAME=$(basename "$APP_PATH")
             ACTIVATED=0
-            VENV_ACTIVATE_PATH=""
             for venv in \
               "$HOME/nodevenv/$APP_BASENAME"/*/bin/activate \
               "$HOME/nodevenv"/*/*/bin/activate; do
@@ -67,76 +87,68 @@ jobs:
                 # shellcheck disable=SC1090
                 source "$venv"
                 ACTIVATED=1
-                VENV_ACTIVATE_PATH="$venv"
                 break
               fi
             done
             if [ "$ACTIVATED" -eq 0 ]; then
-              echo "ERROR: no nodevenv found under $HOME/nodevenv/"
+              echo "ERROR: no nodevenv found"
               ls "$HOME/nodevenv/" 2>/dev/null || echo "(nodevenv dir missing)"
               exit 1
             fi
-
             echo "Node: $(node -v)  NPM: $(npm -v)"
 
-            # Derive venv prefix from activate script path.
-            VENV_PREFIX="$(cd "$(dirname "$VENV_ACTIVATE_PATH")/.." && pwd)"
-            echo "venv prefix: $VENV_PREFIX"
-
-            # Create runtime directories
-            mkdir -p "$HOME/sravya-data/uploads" "$HOME/sravya-data/covers"
-            mkdir -p "$APP_PATH/server" "$APP_PATH/tmp"
-
-            # ── Diagnostics: understand cPanel npm environment ───────────────
-            echo "=== npm prefix/config ==="
-            npm prefix 2>/dev/null || true
-            npm config get prefix 2>/dev/null || true
-            echo "=== ~/.npmrc ==="
-            cat "$HOME/.npmrc" 2>/dev/null || echo "(no ~/.npmrc)"
-
-            # ── Install production deps ──────────────────────────────────────
-            # cPanel venv activation writes `prefix=<venv-path>` to ~/.npmrc.
-            # Plain `npm install` routes packages to that venv globally, not
-            # to ./node_modules, and then reports "up to date, 1 package".
-            # Fix: pass --userconfig /dev/null (ignores ~/.npmrc) combined
-            # with an absolute --prefix so packages land in server/node_modules.
-            cd "$APP_PATH/server"
-            rm -f package-lock.json
-            rm -rf node_modules
-
-            echo "=== package.json on server ==="
-            cat package.json
-
-            npm install \
-              --userconfig /dev/null \
-              --prefix "$APP_PATH/server" \
-              --omit=dev \
-              2>&1
-            echo "npm install exit $?"
-
-            echo "=== node_modules contents after install ==="
-            ls "$APP_PATH/server/node_modules/" 2>/dev/null | head -10 || echo "(node_modules empty or missing)"
-
-            # Verify packages landed correctly
-            if [ -d "./node_modules/express" ]; then
-              echo "Packages in server/node_modules/ ✓"
+            # Detect where SCP placed the files: server/ subdir or app root
+            if [ -f "$APP_PATH/server/package.json" ]; then
+              SERVER_DIR="$APP_PATH/server"
+              echo "Files at $SERVER_DIR ✓"
+            elif [ -f "$APP_PATH/package.json" ]; then
+              SERVER_DIR="$APP_PATH"
+              echo "Files at $SERVER_DIR (SCP stripped server/ prefix)"
             else
-              echo "ERROR: express not found after install — full search:"
-              find "$HOME" -maxdepth 8 -name "express" -type d 2>/dev/null | head -10 || true
+              echo "ERROR: package.json not found in $APP_PATH/ or $APP_PATH/server/"
               exit 1
             fi
 
-            # Write .env (cwd is already $APP_PATH/server)
+            # Create runtime directories
+            mkdir -p "$HOME/sravya-data/uploads" "$HOME/sravya-data/covers"
+            mkdir -p "$APP_PATH/tmp"
+
+            # Rebuild native modules (better-sqlite3) for the server's platform.
+            # CI installed pure-JS only (--ignore-scripts); we compile here where
+            # we have the correct glibc and Node headers.
+            cd "$SERVER_DIR"
+            echo "Rebuilding native modules in $SERVER_DIR ..."
+            npm rebuild 2>&1 || {
+              echo "npm rebuild failed — trying npm install as fallback"
+              npm install \
+                --userconfig /dev/null \
+                --prefix "$SERVER_DIR" \
+                --omit=dev \
+                2>&1
+            }
+            echo "rebuild/install exit $?"
+
+            # Verify express is accessible
+            if [ -d "$SERVER_DIR/node_modules/express" ]; then
+              echo "node_modules/express ✓"
+            else
+              echo "ERROR: express not found in $SERVER_DIR/node_modules/"
+              ls "$SERVER_DIR/node_modules/" 2>/dev/null | head -10 || echo "(node_modules empty)"
+              exit 1
+            fi
+
+            # Write .env — dotenv reads from process.cwd() which Passenger sets
+            # to the app root. Write to both locations for safety.
             {
               echo "API_KEY=${{ secrets.CPANEL_API_KEY }}"
               echo "DATA_DIR=$HOME/sravya-data"
               echo "NODE_ENV=production"
-            } > .env
-            echo ".env written"
+            } | tee "$APP_PATH/.env" > "$SERVER_DIR/.env"
+            echo ".env written to $APP_PATH/.env and $SERVER_DIR/.env"
 
-            # Restart Passenger via relative path to avoid any BOM in APP_PATH
-            mkdir -p ../tmp
-            touch ../tmp/restart.txt
+            # Restart Passenger
+            touch "$APP_PATH/tmp/restart.txt"
+            echo "Passenger restart triggered"
 
             echo "Deploy complete at $(date -u)"
 
@@ -145,7 +157,7 @@ jobs:
     name: Smoke Test
     runs-on: ubuntu-latest
     needs: deploy
-    continue-on-error: true  # DNS may still be propagating; deploy is already done
+    continue-on-error: true
 
     steps:
       - name: Wait for Passenger restart
