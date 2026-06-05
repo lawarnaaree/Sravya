@@ -83,31 +83,46 @@ jobs:
             VENV_PREFIX="$(cd "$(dirname "$VENV_ACTIVATE_PATH")/.." && pwd)"
             echo "venv prefix: $VENV_PREFIX"
 
-            # Unset npm_config_prefix so npm falls back to the system alt-nodejs
-            # prefix (/opt/alt/alt-nodejs20/root/usr), which already has lib/package.json.
-            # When npm_config_prefix points to our venv and we create an empty lib/package.json
-            # there, npm reads it as "global packages up to date" and installs nothing.
-            # With the prefix unset, local `npm install` (without -g) writes to ./node_modules.
-            unset npm_config_prefix
-
             # Create runtime directories
             mkdir -p "$HOME/sravya-data/uploads" "$HOME/sravya-data/covers"
             mkdir -p "$APP_PATH/server" "$APP_PATH/tmp"
 
-            # Install production deps — always force a clean install to avoid
-            # stale node_modules from previous partial or wrong-path deploys.
+            # ── Diagnostics: understand cPanel npm environment ───────────────
+            echo "=== npm prefix/config ==="
+            npm prefix 2>/dev/null || true
+            npm config get prefix 2>/dev/null || true
+            echo "=== ~/.npmrc ==="
+            cat "$HOME/.npmrc" 2>/dev/null || echo "(no ~/.npmrc)"
+
+            # ── Install production deps ──────────────────────────────────────
+            # cPanel venv activation writes `prefix=<venv-path>` to ~/.npmrc.
+            # Plain `npm install` routes packages to that venv globally, not
+            # to ./node_modules, and then reports "up to date, 1 package".
+            # Fix: pass --userconfig /dev/null (ignores ~/.npmrc) combined
+            # with an absolute --prefix so packages land in server/node_modules.
             cd "$APP_PATH/server"
             rm -f package-lock.json
             rm -rf node_modules
-            npm install --omit=dev 2>&1
+
+            echo "=== package.json on server ==="
+            cat package.json
+
+            npm install \
+              --userconfig /dev/null \
+              --prefix "$APP_PATH/server" \
+              --omit=dev \
+              2>&1
             echo "npm install exit $?"
+
+            echo "=== node_modules contents after install ==="
+            ls "$APP_PATH/server/node_modules/" 2>/dev/null | head -10 || echo "(node_modules empty or missing)"
 
             # Verify packages landed correctly
             if [ -d "./node_modules/express" ]; then
               echo "Packages in server/node_modules/ ✓"
             else
-              echo "ERROR: express not found after install — searching:"
-              find "$HOME" -maxdepth 8 -name "express" -type d 2>/dev/null | head -5 || true
+              echo "ERROR: express not found after install — full search:"
+              find "$HOME" -maxdepth 8 -name "express" -type d 2>/dev/null | head -10 || true
               exit 1
             fi
 
