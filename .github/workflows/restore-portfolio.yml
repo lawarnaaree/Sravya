@@ -1,0 +1,67 @@
+name: Restore Portfolio API
+
+on:
+  workflow_dispatch:
+
+# This workflow repairs /home/lawarnaa/api.lawarnaaree.com.np after a prior
+# Sravya deploy accidentally targeted that directory (CPANEL_APP_PATH was wrong).
+# It removes the accidentally-deployed Sravya server/ files, restores the
+# node_modules symlink to the portfolio's own venv, and restarts Passenger.
+
+jobs:
+  restore:
+    name: Restore portfolio API server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Restore portfolio directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CPANEL_SSH_HOST }}
+          username: ${{ secrets.CPANEL_SSH_USER }}
+          key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.CPANEL_SSH_PORT }}
+          script: |
+            set -e
+
+            PORTFOLIO_PATH="$HOME/api.lawarnaaree.com.np"
+            PORTFOLIO_VENV_NODE_MODULES="$HOME/nodevenv/api.lawarnaaree.com.np/22/lib/node_modules"
+
+            echo "====== Current state of portfolio directory ======"
+            ls -la "$PORTFOLIO_PATH/" 2>/dev/null || echo "(dir not found)"
+
+            echo "====== Checking for accidentally-deployed Sravya files ======"
+            if [ -d "$PORTFOLIO_PATH/server" ]; then
+              echo "Found Sravya server/ subdir — removing it..."
+              rm -rf "$PORTFOLIO_PATH/server"
+              echo "Removed $PORTFOLIO_PATH/server ✓"
+            else
+              echo "No server/ subdir found — nothing to remove"
+            fi
+
+            echo "====== Fixing node_modules symlink ======"
+            if [ -d "$PORTFOLIO_VENV_NODE_MODULES" ]; then
+              ln -sfn "$PORTFOLIO_VENV_NODE_MODULES" "$PORTFOLIO_PATH/node_modules"
+              echo "node_modules -> $PORTFOLIO_VENV_NODE_MODULES ✓"
+            else
+              echo "WARNING: portfolio venv node_modules not found at $PORTFOLIO_VENV_NODE_MODULES"
+              echo "Searching for portfolio venv..."
+              find "$HOME/nodevenv" -path "*/api.*" -name "node_modules" -type d 2>/dev/null | head -5 || true
+            fi
+
+            echo "====== Verifying express is reachable ======"
+            if [ -d "$PORTFOLIO_PATH/node_modules/express" ]; then
+              echo "express found via node_modules symlink ✓"
+            else
+              echo "WARNING: express not found at $PORTFOLIO_PATH/node_modules/express"
+            fi
+
+            echo "====== Restarting portfolio Passenger app ======"
+            mkdir -p "$PORTFOLIO_PATH/tmp"
+            touch "$PORTFOLIO_PATH/tmp/restart.txt"
+            echo "Passenger restart triggered ✓"
+
+            echo "====== Post-restore directory state ======"
+            ls -la "$PORTFOLIO_PATH/"
+
+            echo "====== Restore complete at $(date -u) ======"

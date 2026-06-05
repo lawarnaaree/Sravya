@@ -94,21 +94,19 @@ jobs:
             mkdir -p "$HOME/sravya-data/uploads" "$HOME/sravya-data/covers"
             mkdir -p "$APP_PATH/server" "$APP_PATH/tmp"
 
-            # Install production deps locally. --prefix . forces ./node_modules as target.
+            # Install production deps — always force a clean install to avoid
+            # stale node_modules from previous partial or wrong-path deploys.
             cd "$APP_PATH/server"
             rm -f package-lock.json
-            npm install --prefix . --omit=dev 2>&1
+            rm -rf node_modules
+            npm install --omit=dev 2>&1
             echo "npm install exit $?"
 
-            # Locate where packages landed
+            # Verify packages landed correctly
             if [ -d "./node_modules/express" ]; then
               echo "Packages in server/node_modules/ ✓"
-            elif [ -d "$VENV_PREFIX/lib/node_modules/express" ]; then
-              # cPanel's npm redirected to venv — link into app root for Node resolution
-              ln -sfn "$VENV_PREFIX/lib/node_modules" "$APP_PATH/node_modules"
-              echo "Linked venv node_modules into app root ✓"
             else
-              echo "ERROR: express not found after install — showing search:"
+              echo "ERROR: express not found after install — searching:"
               find "$HOME" -maxdepth 8 -name "express" -type d 2>/dev/null | head -5 || true
               exit 1
             fi
